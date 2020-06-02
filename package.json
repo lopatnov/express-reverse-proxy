@@ -1,0 +1,32 @@
+{
+  "name": "@lopatnov/static-server-express",
+  "version": "1.0.0",
+  "description": "The web server to serve files from folders.",
+  "author": "lopatnov",
+  "main": "server.js",
+  "folders": [
+    "www"
+  ],
+  "keywords": [
+    "static",
+    "server",
+    "express"
+  ],
+  "scripts": {
+    "start": "node -r esm ./server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lopatnov/static-server-express.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/lopatnov/static-server-express/issues"
+  },
+  "homepage": "https://github.com/lopatnov/static-server-express#readme",
+  "dependencies": {
+    "esm": "^3.2.25",
+    "express": "^4.17.1",
+    "path": "^0.12.7"
+  }
+}
