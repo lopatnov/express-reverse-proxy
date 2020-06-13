@@ -1,7 +1,7 @@
 {
   "name": "@lopatnov/static-server-express",
   "version": "1.0.0",
-  "description": "The web server to serve files from folders.",
+  "description": "A back-end tool to serve front-end projects. Configure a tool and serve your projects.",
   "author": "lopatnov",
   "main": "server.js",
   "keywords": [
