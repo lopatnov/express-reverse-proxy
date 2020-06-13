@@ -62,7 +62,7 @@ This configuration means that the server will serve static files from multiple d
 ```json
 {
   "folders": {
-    "": "dist",
+    "/": "dist",
     "/api": "./mock-json",
     "/assets": {
       "/images": "./images",
