@@ -20,7 +20,20 @@ The `folders` is a variable to serve static files such as images, CSS files, and
 }
 ```
 
-This configuration means that server will serve static files from a local `www` directory.
+This configuration means that the server will serve static files from a local `www` directory. The `folders` variable can changed by a value of relative path like "./www", "../../my-nice-project/www" or "./project/my-front-end-files".
+
+#### Serve static files from multiple directories
+
+```json
+{
+  "folders": ["./www", "./mock-json", "../../images"]
+}
+```
+
+This configuration means that the server will serve static files from multiple directories:
+- `./www`
+- `./mock-json`
+- `../../images`
 
 ## Docker support
 
