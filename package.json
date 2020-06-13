@@ -10,7 +10,7 @@
     "express"
   ],
   "scripts": {
-    "start": "node -r esm ./server.js"
+    "start": "node -r ./server.js"
   },
   "repository": {
     "type": "git",
@@ -22,9 +22,13 @@
   },
   "homepage": "https://github.com/lopatnov/static-server-express#readme",
   "dependencies": {
-    "esm": "^3.2.25",
     "express": "^4.17.1",
     "morgan": "^1.10.0",
     "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "eslint": "^7.2.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint-plugin-import": "^2.21.2"
   }
 }
