@@ -10,9 +10,10 @@ The server is listening on <http://localhost:8080>
 
 ## Docker support
 
+```
 > docker build .
-
 > docker run -p 8080:8080 <id>
+```
 
 ## Configuration
 
