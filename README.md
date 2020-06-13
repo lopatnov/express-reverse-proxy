@@ -1,10 +1,18 @@
 # static-server-express
 
+A back-end (Node.js) tool to serve front-end projects. Configure a tool and serve your projects.
+
 ## Run Server
 
 > npm start
 
-Server listening on http://localhost:8080
+The server is listening on http://localhost:8080
+
+## Docker support
+
+> docker build .
+
+> docker run -p 8080:8080 <id>
 
 ## Configuration
 
@@ -73,9 +81,3 @@ directory: ./scss/dist
 url: /assets/script
 directory: ./scripts
 ```
-
-## Docker support
-
-> docker build .
-
-> docker run -p 8080:8080 <id>
