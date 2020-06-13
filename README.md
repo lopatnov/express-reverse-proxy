@@ -55,7 +55,7 @@ This configuration means that the server will serve static files from multiple d
 
 This configuration means that the server will serve static files from multiple directories. The url path maps to this directories.
 
-In example above you can the next mapping:
+In example above you can see the next mapping:
 
 ```
 url: /
