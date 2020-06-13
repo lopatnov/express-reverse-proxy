@@ -92,3 +92,10 @@ directory: ./scss/dist
 url: /assets/script
 directory: ./scripts
 ```
+
+
+## Rights and Agreements
+
+License [Apache-2.0](https://github.com/lopatnov/static-server-express/blob/master/LICENSE)
+
+Copyright 2020 Oleksandr Lopatnov
