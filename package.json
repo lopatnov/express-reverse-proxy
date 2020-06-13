@@ -23,6 +23,7 @@
   "homepage": "https://github.com/lopatnov/static-server-express#readme",
   "dependencies": {
     "express": "^4.17.1",
+    "express-http-proxy": "^1.6.0",
     "morgan": "^1.10.0",
     "path": "^0.12.7"
   },

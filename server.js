@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const morgan = require('morgan');
+const proxy = require('express-http-proxy');
 
 const configFile = fs.existsSync('./server-config.json') ? './server-config.json' : './package.json';
 
@@ -11,6 +12,8 @@ const config = JSON.parse(fs.readFileSync(configFile));
 const app = express();
 const host = 'localhost';
 const port = (config && config.port) || 8080;
+
+app.use(morgan('combined'));
 
 function addStaticFolderByName(urlPath, folder) {
   let folderPath = folder;
@@ -50,10 +53,45 @@ function addStaticFolder(rootPath, folder) {
   }
 }
 
-app.use(morgan('combined'));
-
 if (config && config.folders) {
   addStaticFolder(null, config.folders);
+}
+
+function addRemoteProxy(urlPath, proxyServer) {
+  if (urlPath) {
+    app.use(urlPath, proxy(proxyServer));
+  } else {
+    app.use(proxy(proxyServer));
+  }
+  console.log(`[proxy] http://localhost/${urlPath || ''} <===> ${proxyServer}`);
+}
+
+function addMappedProxy(localRootPath, pathPairs) {
+  const localPaths = Object.getOwnPropertyNames(pathPairs);
+  localPaths.forEach((localPath) => {
+    const localFullPath = (localRootPath || '') + localPath;
+    addRemoteProxy(localFullPath, pathPairs[localPath]);
+  });
+}
+
+function addProxies(localRootPath, proxies) {
+  proxies.forEach((proxyUrl) => {
+    addRemoteProxy(localRootPath, proxyUrl);
+  });
+}
+
+function addProxy(localRootPath, remoteProxy) {
+  if (typeof (remoteProxy) === 'string') {
+    addRemoteProxy(localRootPath, remoteProxy);
+  } else if (Array.isArray(remoteProxy)) {
+    addProxies(localRootPath, remoteProxy);
+  } else if (remoteProxy instanceof Object) {
+    addMappedProxy(localRootPath, remoteProxy);
+  }
+}
+
+if (config && config.proxy) {
+  addProxy(null, config.proxy);
 }
 
 const server = app.listen(port, () => {
