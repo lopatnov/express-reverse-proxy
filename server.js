@@ -7,7 +7,7 @@ import morgan from 'morgan';
 
 const app = express();
 const host = 'localhost';
-const port = 8080;
+const port = (config && config.port) || 8080;
 
 function addStaticFolderByName(urlPath, folder) {
     "use strict";
@@ -58,7 +58,7 @@ if (config && config.folders) {
 }
 
 app.listen(port, function () {
-    console.log(`Server listening on ${host}:${port}`);
+    console.log(`Server listening on http://${host}:${port}`);
 });
 
 process.on('message', (msg) => {

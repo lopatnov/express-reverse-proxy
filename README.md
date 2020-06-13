@@ -18,6 +18,17 @@ The server is listening on http://localhost:8080
 
 Edit `config.json` file
 
+### Configure server port
+
+```json
+{
+  "port": 8080
+  ...
+}
+```
+
+To configure server port, edit `port` variable. The default server port is `8080`.
+
 ### Configure `folders` variable
 
 The `folders` is a variable to serve static files such as images, CSS files, and JavaScript files.
