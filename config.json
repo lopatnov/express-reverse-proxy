@@ -1,0 +1,11 @@
+{
+  "folders": [
+    "www",
+    {
+      "/one": "www",
+      "/two": {
+        "/three": "www"
+      }
+    }
+  ]
+}

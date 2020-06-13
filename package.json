@@ -4,9 +4,6 @@
   "description": "The web server to serve files from folders.",
   "author": "lopatnov",
   "main": "server.js",
-  "folders": [
-    "www"
-  ],
   "keywords": [
     "static",
     "server",
@@ -27,6 +24,7 @@
   "dependencies": {
     "esm": "^3.2.25",
     "express": "^4.17.1",
+    "morgan": "^1.10.0",
     "path": "^0.12.7"
   }
 }
