@@ -4,6 +4,8 @@
 
 > npm start
 
+Server listening on http://localhost:8080
+
 ## Configuration
 
 Edit `config.json` file
@@ -52,6 +54,25 @@ This configuration means that the server will serve static files from multiple d
 ```
 
 This configuration means that the server will serve static files from multiple directories. The url path maps to this directories.
+
+In example above you can the next mapping:
+
+```
+url: /
+directory: dist
+
+url: /api
+directory: ./mock-json
+
+url: /assets/images
+directory: ./images
+
+url: /assets/css
+directory: ./scss/dist
+
+url: /assets/script
+directory: ./scripts
+```
 
 ## Docker support
 
