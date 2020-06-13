@@ -1,8 +1,13 @@
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const morgan = require('morgan');
-const config = require('./config.json');
 
+const configFile = fs.existsSync('./server-config.json') ? './server-config.json' : './package.json';
+
+console.log(`[config] ${configFile}`);
+
+const config = JSON.parse(fs.readFileSync(configFile));
 const app = express();
 const host = 'localhost';
 const port = (config && config.port) || 8080;
@@ -17,7 +22,7 @@ function addStaticFolderByName(urlPath, folder) {
   } else {
     app.use(express.static(folderPath));
   }
-  console.log(`[static] ${urlPath || '/'} = ${folderPath}`);
+  console.log(`[static] http://localhost/${urlPath || ''} <===> ${folderPath}`);
 }
 
 function addMappedStaticFolders(rootPath, folders) {
@@ -52,7 +57,7 @@ if (config && config.folders) {
 }
 
 const server = app.listen(port, () => {
-  console.log(`Server listening on http://${host}:${port}`);
+  console.log(`[listen] http://${host}:${port}`);
 });
 
 process.on('message', (msg) => {

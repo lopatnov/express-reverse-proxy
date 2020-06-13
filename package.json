@@ -10,7 +10,7 @@
     "express"
   ],
   "scripts": {
-    "start": "node -r ./server.js"
+    "start": "node ./server.js"
   },
   "repository": {
     "type": "git",

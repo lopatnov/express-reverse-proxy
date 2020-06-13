@@ -6,7 +6,7 @@ A back-end (Node.js) tool to serve front-end projects. Configure a tool and serv
 
 > npm start
 
-The server is listening on http://localhost:8080
+The server is listening on <http://localhost:8080>
 
 ## Docker support
 
@@ -52,6 +52,7 @@ This configuration means that the server will serve static files from a local `w
 ```
 
 This configuration means that the server will serve static files from multiple directories:
+
 - `./www`
 - `./mock-json`
 - `../../images`
@@ -76,7 +77,7 @@ This configuration means that the server will serve static files from multiple d
 
 In example above you can see the next mapping:
 
-```
+```txt
 url: /
 directory: dist
 
