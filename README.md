@@ -35,6 +35,24 @@ This configuration means that the server will serve static files from multiple d
 - `./mock-json`
 - `../../images`
 
+#### Map url path to serve static files from directories
+
+```json
+{
+  "folders": {
+    "": "dist",
+    "/api": "./mock-json",
+    "/assets": {
+      "/images": "./images",
+      "/css": "./scss/dist",
+      "/script": "./scripts"
+    }
+  }
+}
+```
+
+This configuration means that the server will serve static files from multiple directories. The url path maps to this directories.
+
 ## Docker support
 
 > docker build .
