@@ -51,11 +51,11 @@ function addStaticFolder(path, folder) {
     }
 }
 
+app.use(morgan('combined'));
+
 if (config && config.folders) {
     addStaticFolder(null, config.folders);
 }
-
-app.use(morgan('combined'));
 
 app.listen(port, function () {
     console.log(`Server listening on ${host}:${port}`);
