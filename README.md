@@ -95,6 +95,9 @@ url: /assets/script
 directory: ./scripts
 ```
 
+### Configure `proxy` variable
+
+The `proxy` variable intended for request redirect to 3rd-party server and getting result of this response.
 
 ## Rights and Agreements
 
