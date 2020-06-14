@@ -17,7 +17,7 @@ The server is listening on <http://localhost:8080>
 
 ## Configuration
 
-Edit `config.json` file
+Edit `server-config.json` file
 
 ### Configure server port
 
