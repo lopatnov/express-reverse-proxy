@@ -99,6 +99,20 @@ directory: ./scripts
 
 The `proxy` variable intended for request redirect to 3rd-party server and getting result of this response.
 
+#### Connect API to front-end project
+
+```json
+{
+  "port": 4200,
+  "folders": "www",
+  "proxy": {
+    "/api": "localhost:8000"
+  }
+}
+```
+
+This configuration means that the server will serve static files from a local `www` directory on 4200 port with remote API on <http://localhost:8000>. When the web-site makes request to "/api" path, the request will redirect to remote server with <localhost:8000> address.
+
 ## Rights and Agreements
 
 License [Apache-2.0](https://github.com/lopatnov/static-server-express/blob/master/LICENSE)
