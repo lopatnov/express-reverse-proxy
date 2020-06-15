@@ -1,6 +1,6 @@
 # static-server-express
 
-A back-end (Node.js) tool to serve front-end projects. Configure a tool and serve your projects.
+A back-end (Node.js) development tool to serve front-end projects with back-end reverse proxy for API. Configure a tool and serve your front-end projects.
 
 ## Run Server
 
