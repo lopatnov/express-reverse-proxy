@@ -1,6 +1,11 @@
-# static-server-express
+# Express reverse proxy
 
 A back-end (Node.js) development tool to serve front-end projects with back-end reverse proxy for API. Configure a tool and serve your front-end projects.
+
+- [Run Server](#run-server)
+- [Docker support](#docker-support)
+- [Configuration](#configuration)
+- [Rights and Agreements](#rights-and-agreements)
 
 ## Run Server
 
@@ -11,8 +16,8 @@ The server is listening on <http://localhost:8080>
 ## Docker support
 
 ```
-> docker build .
-> docker run -p 8080:8080 <id>
+> docker build -t lopatnov/server .
+> docker run -p 8080:8080 lopatnov/server
 ```
 
 ## Configuration
