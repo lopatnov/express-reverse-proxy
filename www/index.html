@@ -88,5 +88,30 @@
 
     <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
     <script src="/assets/js/ie10-viewport-bug-workaround.js"></script>
+
+    <script>
+      // A sample how to use API from https://api.myspeed.today/provider.xml?ip=5.1.5.1
+
+      function getProvider() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/provider.json?ip=5.1.5.1', true);
+        xhr.send();
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState != 4) return;
+
+          if (xhr.status != 200) {
+            var el = document.getElementsByClassName("lead")[0];
+            el.innerHTML = "<pre>" + xhr.responseText + "</pre>"
+          } else {
+            setTimeout(getProvider, 4000);
+          }
+
+        }
+      }
+
+      getProvider();
+
+    </script>
+
   </body>
 </html>

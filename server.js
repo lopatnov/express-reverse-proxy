@@ -25,7 +25,7 @@ function addStaticFolderByName(urlPath, folder) {
   } else {
     app.use(express.static(folderPath));
   }
-  console.log(`[static] http://localhost/${urlPath || ''} <===> ${folderPath}`);
+  console.log(`[folder] http://localhost:${port}/${urlPath || ''} <===> ${folderPath}`);
 }
 
 function addMappedStaticFolders(rootPath, folders) {
@@ -63,7 +63,7 @@ function addRemoteProxy(urlPath, proxyServer) {
   } else {
     app.use(proxy(proxyServer));
   }
-  console.log(`[proxy] http://localhost/${urlPath || ''} <===> ${proxyServer}`);
+  console.log(`[proxy] http://localhost:${port}/${urlPath || ''} <===> ${proxyServer}`);
 }
 
 function addMappedProxy(localRootPath, pathPairs) {

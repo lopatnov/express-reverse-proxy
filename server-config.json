@@ -1,4 +1,7 @@
 {
   "port": 8080,
-  "folders": "www"
+  "folders": "www",
+  "proxy": {
+    "/api": "https://api.myspeed.today"
+  }
 }
