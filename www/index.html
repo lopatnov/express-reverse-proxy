@@ -94,14 +94,14 @@
 
       function getProvider() {
         var xhr = new XMLHttpRequest();
-        xhr.open('GET', '/api/provider.json?ip=5.1.5.1', true);
+        xhr.open('GET', '/api/data/whats-my-ip/data.json', true);
         xhr.send();
         xhr.onreadystatechange = function() {
           if (xhr.readyState != 4) return;
 
-          if (xhr.status != 200) {
+          if (xhr.status < 400) {
             var el = document.getElementsByClassName("lead")[0];
-            el.innerHTML = "<pre>" + xhr.responseText + "</pre>"
+            el.innerHTML = "<pre class='text-left'>" + xhr.responseText + "</pre>"
           } else {
             setTimeout(getProvider, 4000);
           }
