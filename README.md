@@ -122,4 +122,4 @@ This configuration means that the server will serve static files from a local `w
 
 License [Apache-2.0](https://github.com/lopatnov/static-server-express/blob/master/LICENSE)
 
-Copyright 2020 Oleksandr Lopatnov
+Copyright 2020–2021 Oleksandr Lopatnov
