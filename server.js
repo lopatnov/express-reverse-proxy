@@ -96,7 +96,9 @@ if (config && config.proxy) {
 
 const server = app.listen(port, () => {
   console.log(`[listen] http://${host}:${port}`);
-  process.send('ready');
+  if (process.send) {
+    process.send('ready');
+  }
 });
 
 function shutdown() {
