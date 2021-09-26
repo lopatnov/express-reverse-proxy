@@ -11,7 +11,7 @@ console.log(`[config] ${configFile}`);
 const config = JSON.parse(fs.readFileSync(configFile));
 const app = express();
 const host = 'localhost';
-const port = (config && config.port) || 8080;
+const port = (config && config.port) || process.env.PORT || 8080;
 
 app.use(morgan('combined'));
 
