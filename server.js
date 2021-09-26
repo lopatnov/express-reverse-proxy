@@ -96,14 +96,21 @@ if (config && config.proxy) {
 
 const server = app.listen(port, () => {
   console.log(`[listen] http://${host}:${port}`);
+  process.send('ready');
 });
+
+function shutdown() {
+  console.log('Closing all connections...');
+  server.close(() => {
+    console.log('Finished closing connections');
+    process.exit(0);
+  });
+}
 
 process.on('message', (msg) => {
   if (msg.toLowerCase() === 'shutdown') {
-    console.log('Closing all connections...');
-    server.close(() => {
-      console.log('Finished closing connections');
-      process.exit(0);
-    });
+    shutdown();
   }
 });
+
+process.on('SIGINT', shutdown);

@@ -10,7 +10,11 @@
     "express"
   ],
   "scripts": {
-    "start": "node ./server.js"
+    "start": "node ./server.js",
+    "pm2-start": "pm2 start server.js --wait-ready --watch --time --listen-timeout 10000",
+    "pm2-stop": "pm2 stop server.js",
+    "pm2-status": "pm2 status",
+    "pm2-logs": "pm2 logs --lines 200"
   },
   "repository": {
     "type": "git",
@@ -30,6 +34,7 @@
   "devDependencies": {
     "eslint": "^7.30.0",
     "eslint-config-airbnb-base": "^14.2.1",
-    "eslint-plugin-import": "^2.23.4"
+    "eslint-plugin-import": "^2.23.4",
+    "pm2": "^5.1.2"
   }
 }
