@@ -94,6 +94,39 @@ if (config && config.proxy) {
   addProxy(null, config.proxy);
 }
 
+function notFound(res, acceptConfig) {
+  const headers = (acceptConfig.headers && Object.keys(acceptConfig.headers)) || [];
+  headers.forEach((header) => res.setHeader(header, acceptConfig.headers[header]));
+
+  let statusCode = Number.parseInt(acceptConfig.status, 10);
+  if (!Number.isFinite(statusCode)) {
+    statusCode = 404;
+  }
+  const status = res.status(statusCode);
+
+  if (acceptConfig.send) {
+    status.send(acceptConfig.send);
+  } else if (acceptConfig.file) {
+    status.sendFile(acceptConfig.file, {
+      root: process.cwd(),
+    });
+  } else {
+    status.send();
+  }
+}
+
+if (config && config.notFound) {
+  app.use((req, res, next) => {
+    Object.keys(config.notFound).forEach((acceptName) => {
+      if (!acceptName || acceptName === '*' || acceptName === '**') {
+        notFound(res, config.notFound[acceptName]);
+      } else if (req.accepts(acceptName)) {
+        notFound(res, config.notFound[acceptName]);
+      }
+    });
+  });
+}
+
 const server = app.listen(port, () => {
   console.log(`[listen] http://${host}:${port}`);
   if (process.send) {

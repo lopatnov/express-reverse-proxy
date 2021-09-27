@@ -125,6 +125,59 @@ The `proxy` variable intended for request redirect to 3rd-party server and getti
 
 This configuration means that the server will serve static files from a local `www` directory on 4200 port with remote API on <http://localhost:8000>. When the web-site makes request to "/api" path, the request will redirect to remote server with <localhost:8000> address.
 
+### Configure `notFound` variable
+
+To handle unhandled requests use `notFound` variable. It's behavior depends on Accept header. It can be used any accept header.
+
+```json
+{
+  ...
+  "notFound": {
+    "html": { // <-- Accept header for html requests
+      ...
+    },
+    "json": { // <-- Accept header for json requests
+      ...
+    },
+    "xml": { // <-- Accept header for xml requests
+      ...
+    },
+    "*": { // <-- Any accept header
+      ...
+    }
+  }
+  ...
+}
+```
+
+Each accept header can contain its options.
+
+```json
+"html": { // <-- Accept header for HTML requests (for example)
+  "status": 307, // <-- Response status code Temporary redirect, see 307 http status code
+  "headers": {  // <-- Headers
+    "Location": "/"
+  }
+},
+
+"json": { // <-- Accept header for json requests
+  "status": 404, // <-- Response status code Not Found
+  "send": { // Response JSON object
+    "error": "JSON Not Found"
+  }
+},
+
+"xml": { // <-- Accept header for XML requests
+  "status": 404, // <-- Response status code Not Found
+  "send": "<error>Not Found</error>" // Response is text
+},
+
+"*": { // <-- Any accept header
+  "status": 404,  // <-- Response status code Not Found
+  "file": "./www/not-found.txt" // Response read from file "./www/not-found.txt"
+}
+```
+
 ## Configuration Recipes
 
 ### Request a static file, than make request to back-end

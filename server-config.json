@@ -3,5 +3,27 @@
   "folders": "www",
   "proxy": {
     "/api": "https://stat.ripe.net"
+  },
+  "notFound": {
+    "html": {
+      "status": 307,
+      "headers": {
+        "Location": "/"
+      }
+    },
+    "json": {
+      "status": 404,
+      "send": {
+        "error": "JSON Not Found"
+      }
+    },
+    "xml": {
+      "status": 404,
+      "send": "<error>Not Found</error>"
+    },
+    "*": {
+      "status": 404,
+      "file": "./www/not-found.txt"
+    }
   }
 }
