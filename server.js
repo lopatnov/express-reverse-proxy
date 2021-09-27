@@ -94,7 +94,7 @@ if (config && config.proxy) {
   addProxy(null, config.proxy);
 }
 
-function notFound(res, acceptConfig) {
+function unhandled(res, acceptConfig) {
   const headers = (acceptConfig.headers && Object.keys(acceptConfig.headers)) || [];
   headers.forEach((header) => res.setHeader(header, acceptConfig.headers[header]));
 
@@ -115,13 +115,13 @@ function notFound(res, acceptConfig) {
   }
 }
 
-if (config && config.notFound) {
+if (config && config.unhandled) {
   app.use((req, res, next) => {
-    Object.keys(config.notFound).forEach((acceptName) => {
+    Object.keys(config.unhandled).forEach((acceptName) => {
       if (!acceptName || acceptName === '*' || acceptName === '**') {
-        notFound(res, config.notFound[acceptName]);
+        unhandled(res, config.unhandled[acceptName]);
       } else if (req.accepts(acceptName)) {
-        notFound(res, config.notFound[acceptName]);
+        unhandled(res, config.unhandled[acceptName]);
       }
     });
   });

@@ -4,7 +4,7 @@
   "proxy": {
     "/api": "https://stat.ripe.net"
   },
-  "notFound": {
+  "unhandled": {
     "html": {
       "status": 307,
       "headers": {

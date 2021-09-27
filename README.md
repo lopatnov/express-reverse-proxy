@@ -125,14 +125,14 @@ The `proxy` variable intended for request redirect to 3rd-party server and getti
 
 This configuration means that the server will serve static files from a local `www` directory on 4200 port with remote API on <http://localhost:8000>. When the web-site makes request to "/api" path, the request will redirect to remote server with <localhost:8000> address.
 
-### Configure `notFound` variable
+### Configure `unhandled` variable
 
-To handle unhandled requests use `notFound` variable. It's behavior depends on Accept header. It can be used any accept header.
+To handle unhandled requests use `unhandled` variable. It's behavior depends on Accept header. It can be used any accept header.
 
 ```json5
 {
   ...
-  "notFound": {
+  "unhandled": {
     "html": { // <-- Accept header for html requests
       ...
     },
