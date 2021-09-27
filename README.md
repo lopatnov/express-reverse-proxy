@@ -129,7 +129,7 @@ This configuration means that the server will serve static files from a local `w
 
 To handle unhandled requests use `notFound` variable. It's behavior depends on Accept header. It can be used any accept header.
 
-```json
+```json5
 {
   ...
   "notFound": {
@@ -152,7 +152,7 @@ To handle unhandled requests use `notFound` variable. It's behavior depends on A
 
 Each accept header can contain its options.
 
-```json
+```json5
 "html": { // <-- Accept header for HTML requests (for example)
   "status": 307, // <-- Response status code Temporary redirect, see 307 http status code
   "headers": {  // <-- Headers
