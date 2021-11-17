@@ -28,6 +28,12 @@
     "url": "https://github.com/lopatnov/static-server-express/issues"
   },
   "homepage": "https://github.com/lopatnov/static-server-express#readme",
+  "files": [
+    "**/*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "express": "^4.17.1",
     "express-http-proxy": "^1.6.2",
