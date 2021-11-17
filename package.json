@@ -1,12 +1,15 @@
 {
-  "name": "@lopatnov/static-server-express",
+  "name": "@lopatnov/express-reverse-proxy",
+  "email": "oleksandr@lopatnov.cv.ua",
   "version": "1.0.0",
-  "description": "A back-end tool to serve front-end projects. Configure a tool and serve your projects.",
+  "description": "A back-end (Node.js) development tool to serve front-end projects with back-end reverse proxy for API. Configure a tool and serve your front-end projects",
   "author": "lopatnov",
   "main": "server.js",
+  "bin": "./server.js",
   "keywords": [
-    "static",
-    "server",
+    "reverse",
+    "proxy",
+    "javascript",
     "express"
   ],
   "scripts": {

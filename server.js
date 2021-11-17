@@ -4,7 +4,36 @@ const express = require('express');
 const morgan = require('morgan');
 const proxy = require('express-http-proxy');
 
-const configFile = fs.existsSync('./server-config.json') ? './server-config.json' : './package.json';
+let configFile;
+const configArgumentName = '--config';
+const configArgIndex = process.argv.indexOf(configArgumentName);
+const serverConfigPath = './server-config.json';
+const packageJsonPath = './package.json';
+if (configArgIndex > -1) {
+  if (process.argv.length > configArgIndex + 1) {
+    configFile = process.argv[configArgIndex + 1];
+    if (fs.lstatSync(configFile).isDirectory()) {
+      configFile = path.join(configFile, serverConfigPath);
+      if (!fs.existsSync(configFile)) {
+        const packageJsonArg = path.join(configFile, packageJsonPath);
+        if (fs.existsSync(packageJsonArg)) {
+          configFile = packageJsonArg;
+        }
+      }
+    }
+    if (!fs.existsSync(configFile)) {
+      throw new Error(`Configuration file "${configFile}" not found`);
+    }
+  } else {
+    throw new Error('Please set configuration file name for --config argument');
+  }
+} else if (fs.existsSync(serverConfigPath)) {
+  configFile = serverConfigPath;
+} else if (fs.existsSync(packageJsonPath)) {
+  configFile = packageJsonPath;
+} else {
+  throw new Error(`Configuration file not found. Please add ${serverConfigPath} file or configure it through "${configArgumentName} <file name>" or add configurations to ${packageJsonPath} file`);
+}
 
 console.log(`[config] ${configFile}`);
 
