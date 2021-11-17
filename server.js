@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -47,7 +48,7 @@ app.use(morgan('combined'));
 function addStaticFolderByName(urlPath, folder) {
   let folderPath = folder;
   if (!path.isAbsolute(folder)) {
-    folderPath = path.join(__dirname, folder);
+    folderPath = path.join(process.cwd(), folder);
   }
   if (urlPath) {
     app.use(urlPath, express.static(folderPath));

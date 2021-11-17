@@ -1,11 +1,13 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A back-end (Node.js) development tool to serve front-end projects with back-end reverse proxy for API. Configure a tool and serve your front-end projects",
   "author": "lopatnov",
   "main": "server.js",
-  "bin": "./server.js",
+  "bin": {
+    "express-reverse-proxy": "./server.js"
+  },
   "keywords": [
     "reverse",
     "proxy",
@@ -36,14 +38,14 @@
   },
   "dependencies": {
     "express": "^4.17.1",
-    "express-http-proxy": "^1.6.2",
+    "express-http-proxy": "^1.6.3",
     "morgan": "^1.10.0",
     "path": "^0.12.7"
   },
   "devDependencies": {
-    "eslint": "^7.32.0",
-    "eslint-config-airbnb-base": "^14.2.1",
-    "eslint-plugin-import": "^2.24.2",
+    "eslint": "^8.2.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.25.3",
     "pm2": "^5.1.2"
   }
 }
