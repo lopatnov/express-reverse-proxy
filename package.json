@@ -1,7 +1,7 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A back-end (Node.js) development tool to serve front-end projects with back-end reverse proxy for API. Configure a tool and serve your front-end projects",
   "author": "lopatnov",
   "main": "server.js",
@@ -29,7 +29,7 @@
   "bugs": {
     "url": "https://github.com/lopatnov/static-server-express/issues"
   },
-  "homepage": "https://github.com/lopatnov/static-server-express#readme",
+  "homepage": "https://lopatnov.github.io/express-reverse-proxy/",
   "files": [
     "**/*"
   ],
