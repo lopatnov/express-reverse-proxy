@@ -45,6 +45,14 @@ const port = (config && config.port) || process.env.PORT || 8080;
 
 app.use(morgan('combined'));
 
+if (config.headers) {
+  app.use((req, res, next) => {
+    const headers = Object.keys(config.headers);
+    headers.forEach((header) => res.setHeader(header, config.headers[header]));
+    next();
+  });
+}
+
 function addStaticFolderByName(urlPath, folder) {
   let folderPath = folder;
   if (!path.isAbsolute(folder)) {
@@ -179,3 +187,4 @@ process.on('message', (msg) => {
 });
 
 process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
