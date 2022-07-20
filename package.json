@@ -29,7 +29,7 @@
   "bugs": {
     "url": "https://github.com/lopatnov/static-server-express/issues"
   },
-  "homepage": "https://github.com/lopatnov/static-server-express#readme",
+  "homepage": "https://lopatnov.github.io/express-reverse-proxy/",
   "files": [
     "**/*"
   ],
