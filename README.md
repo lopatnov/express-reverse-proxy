@@ -25,7 +25,8 @@ express-reverse-proxy
 
 ### Running Options
 
-- `--config <file name>` sets server configuration file. Default value is `server-config.json`
+- `--help` shows command line help
+- `--config <file name>` sets server configuration file. Default value is `server-config.json`. See [configuration file example by this link](./server-config.json).
 
 ```shell
 express-reverse-proxy --config ./server-config.json

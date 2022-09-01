@@ -5,37 +5,96 @@ const express = require('express');
 const morgan = require('morgan');
 const proxy = require('express-http-proxy');
 
-let configFile;
-const configArgumentName = '--config';
-const configArgIndex = process.argv.indexOf(configArgumentName);
-const serverConfigPath = './server-config.json';
-const packageJsonPath = './package.json';
-if (configArgIndex > -1) {
-  if (process.argv.length > configArgIndex + 1) {
-    configFile = process.argv[configArgIndex + 1];
-    if (fs.lstatSync(configFile).isDirectory()) {
-      configFile = path.join(configFile, serverConfigPath);
-      if (!fs.existsSync(configFile)) {
-        const packageJsonArg = path.join(configFile, packageJsonPath);
-        if (fs.existsSync(packageJsonArg)) {
-          configFile = packageJsonArg;
-        }
-      }
-    }
-    if (!fs.existsSync(configFile)) {
-      throw new Error(`Configuration file "${configFile}" not found`);
-    }
-  } else {
-    throw new Error('Please set configuration file name for --config argument');
-  }
-} else if (fs.existsSync(serverConfigPath)) {
-  configFile = serverConfigPath;
-} else if (fs.existsSync(packageJsonPath)) {
-  configFile = packageJsonPath;
-} else {
-  throw new Error(`Configuration file not found. Please add ${serverConfigPath} file or configure it through "${configArgumentName} <file name>" or add configurations to ${packageJsonPath} file`);
+const possibleServerArgs = [
+  {
+    name: '--help',
+    description: 'shows command line help',
+  },
+  {
+    name: '--config',
+    subArgs: ['file name'],
+    description: 'sets server configuration file. Default value of file name is "server-config.json"',
+    samples: ['--config ./server-config.json', '--config ./configs/express-reverse-proxy.json'],
+  },
+  // {
+  //   name: '--cluster',
+  //   subArgs: ['command: start | stop'],
+  //   description: 'starts or stops server cluster. By default server starts without cluster',
+  //   samples: ['--cluster start', '--cluster stop'],
+  // },
+];
+
+function exitError(msg, code = -1) {
+  console.error(`\x1b[31m${msg}\x1b[0m`);
+  console.error(`\x1b[31mError code: ${code}\x1b[0m`);
+  process.exit(code);
 }
 
+function parseArguments(args) {
+  const argsNames = args.map((a) => a.name);
+  return args.reduce((res, arg) => {
+    const argIndex = process.argv.indexOf(arg.name);
+    if (argIndex > -1) {
+      const changedResult = { ...res };
+      changedResult[arg.name] = {
+        args: [],
+      };
+      if (arg.subArgs) {
+        arg.subArgs.forEach((subArg, index) => {
+          const subArgIndex = argIndex + index + 1;
+          if (process.argv.length <= subArgIndex
+            || argsNames.indexOf(process.argv[subArgIndex]) > -1) {
+            exitError(`Invalid argument ${arg.name}. Missing <${subArg}>.`, 16);
+          }
+          changedResult[arg.name].args.push(process.argv[subArgIndex]);
+        });
+      }
+      return changedResult;
+    }
+    return res;
+  }, {});
+}
+
+const serverArgs = parseArguments(possibleServerArgs);
+
+function help(app, args) {
+  console.log(`Usage: ${app} [options]\n`);
+  console.log('Options:\n');
+
+  args.forEach((arg) => {
+    const tabIndentLength = 3;
+    const tabIndent = Array(tabIndentLength).fill('\t').join('');
+    const argTabIndent = Array(tabIndentLength - Math.trunc(arg.name.length / 4)).fill('\t').join('');
+    console.log(`\t\x1b[1m${arg.name}\x1b[0m${argTabIndent}${arg.description}`);
+    if (arg.subArgs) {
+      const subArgs = arg.subArgs.map((subArg) => `<${subArg}>`).join(' ');
+      console.log(`\n${tabIndent}${app} ${arg.name} ${subArgs}\n`);
+    }
+    if (arg.samples) {
+      console.log(`${tabIndent}Examples:`);
+      arg.samples.forEach((sample) => {
+        console.log(`\t${tabIndent}${sample}`);
+      });
+      console.log('');
+    }
+  });
+}
+
+if (serverArgs['--help']) {
+  help('express-reverse-proxy', possibleServerArgs);
+  process.exit();
+}
+
+let configFile = './server-config.json';
+if (serverArgs['--config']) {
+  [configFile] = serverArgs['--config'].args;
+  if (fs.existsSync(configFile) && fs.lstatSync(configFile).isDirectory()) {
+    configFile = path.join(configFile, './server-config.json');
+  }
+}
+if (!fs.existsSync(configFile)) {
+  exitError(`Configuration file not found. Please add "${configFile}" file or provide a path through "--config <file name>" option`, 404);
+}
 console.log(`[config] ${configFile}`);
 
 const config = JSON.parse(fs.readFileSync(configFile));
