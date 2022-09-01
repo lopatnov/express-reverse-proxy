@@ -244,4 +244,4 @@ Server listening in 8080 port
 
 License [Apache-2.0](https://github.com/lopatnov/static-server-express/blob/master/LICENSE)
 
-Copyright 2020–2021 Oleksandr Lopatnov
+Copyright 2020–2022 Oleksandr Lopatnov
