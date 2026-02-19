@@ -285,38 +285,39 @@ Each `Accept` key supports these response options:
 
 ### host
 
-Route requests to this configuration based on the HTTP `Host` header. Enables serving multiple sites on a single port.
+Route requests to this configuration based on the HTTP `Host` header. Enables virtual hosting — multiple sites on one server process.
 
 | Value | Behavior |
 |-------|-----------|
 | `"app.localhost"` | Only handles requests whose `Host` header matches exactly |
 | `"*"` or omitted | Catch-all — handles any request not matched by another entry |
 
-To use multi-site mode, make the config file an **array** instead of an object. Specific hosts are always checked before the catch-all:
+To use multi-site mode, make the config file an **array** instead of an object. Specific hosts are always checked before the catch-all.
+
+**Multiple sites on one port** — routing by `Host` header:
 
 ```json
 [
-  {
-    "host": "app.localhost",
-    "port": 8080,
-    "folders": "www",
-    "proxy": { "/api": "localhost:4000" }
-  },
-  {
-    "host": "admin.localhost",
-    "folders": "admin",
-    "proxy": { "/api": "localhost:5000" }
-  },
-  {
-    "host": "*",
-    "folders": "fallback"
-  }
+  { "host": "app.localhost",   "port": 8080, "folders": "www" },
+  { "host": "admin.localhost", "port": 8080, "folders": "admin" },
+  { "host": "*",               "port": 8080, "folders": "fallback" }
 ]
 ```
 
-> Two entries with the same `host` value cause a startup error.
+**Multiple sites on different ports** — one server instance per port:
+
+```json
+[
+  { "host": "app.localhost",   "port": 8080, "folders": "www" },
+  { "host": "admin.localhost", "port": 8080, "folders": "admin" },
+  { "host": "api.localhost",   "port": 9090, "proxy": { "/": "localhost:4000" } },
+  { "host": "*",               "port": 9090, "folders": "fallback" }
+]
+```
+
+> Configs with the same `port` share one Express server; configs with different `port` values each start their own server.
 >
-> `port` is global — the server listens on one port. Use the first entry's `port` (or `PORT` env var) to set it.
+> Two entries with the same `host` **and** `port` cause a startup error. The same `host` on different ports is allowed.
 
 ---
 

@@ -151,30 +151,26 @@ if (!fs.existsSync(configFile)) {
 
 const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
 
-// Validate duplicate hosts
+// Validate: same host on same port is an error; same host on different ports is OK
 const seen = new Set();
 configs.forEach((c) => {
-  const h = c.host || '*';
-  if (seen.has(h)) {
-    exitError(`Duplicate host in configuration: "${h}"`, 1);
+  const p = c.port || process.env.PORT || 8000;
+  const key = `${p}:${c.host || '*'}`;
+  if (seen.has(key)) {
+    exitError(`Duplicate host "${c.host || '*'}" on port ${p}`, 1);
   }
-  seen.add(h);
+  seen.add(key);
 });
 
-// Specific hosts first, catch-all last
-const sortedConfigs = [
-  ...configs.filter((c) => c.host && c.host !== '*'),
-  ...configs.filter((c) => !c.host || c.host === '*'),
-];
+// Group configs by port
+const configsByPort = new Map();
+configs.forEach((c) => {
+  const p = parseInt(c.port || process.env.PORT || 8000, 10);
+  if (!configsByPort.has(p)) configsByPort.set(p, []);
+  configsByPort.get(p).push(c);
+});
 
-const app = express();
-const port = process.env.PORT
-  || configs.reduce((p, c) => p || c.port, null)
-  || 8000;
-
-app.use(morgan('combined'));
-
-function addStaticFolderByName(router, urlPath, folder) {
+function addStaticFolderByName(router, port, urlPath, folder) {
   let folderPath = folder;
   if (!path.isAbsolute(folder)) {
     folderPath = path.join(process.cwd(), folder);
@@ -187,32 +183,32 @@ function addStaticFolderByName(router, urlPath, folder) {
   console.log(`[folder] http://localhost:${port}${urlPath || ''} <===> ${folderPath}`);
 }
 
-function addMappedStaticFolders(router, rootPath, folders) {
+function addMappedStaticFolders(router, port, rootPath, folders) {
   const pathStart = rootPath || '';
   const keys = Object.getOwnPropertyNames(folders);
   keys.forEach((key) => {
     const folderPath = pathStart + key;
-    addStaticFolder(router, folderPath, folders[key]);
+    addStaticFolder(router, port, folderPath, folders[key]);
   });
 }
 
-function addStaticFolders(router, rootPath, folders) {
+function addStaticFolders(router, port, rootPath, folders) {
   folders.forEach((folder) => {
-    addStaticFolder(router, rootPath, folder);
+    addStaticFolder(router, port, rootPath, folder);
   });
 }
 
-function addStaticFolder(router, rootPath, folder) {
+function addStaticFolder(router, port, rootPath, folder) {
   if (typeof (folder) === 'string') {
-    addStaticFolderByName(router, rootPath, folder);
+    addStaticFolderByName(router, port, rootPath, folder);
   } else if (Array.isArray(folder)) {
-    addStaticFolders(router, rootPath, folder);
+    addStaticFolders(router, port, rootPath, folder);
   } else if (folder instanceof Object) {
-    addMappedStaticFolders(router, rootPath, folder);
+    addMappedStaticFolders(router, port, rootPath, folder);
   }
 }
 
-function addRemoteProxy(router, urlPath, proxyServer) {
+function addRemoteProxy(router, port, urlPath, proxyServer) {
   if (urlPath) {
     router.use(urlPath, proxy(proxyServer));
   } else {
@@ -221,27 +217,27 @@ function addRemoteProxy(router, urlPath, proxyServer) {
   console.log(`[proxy] http://localhost:${port}${urlPath || ''} <===> ${proxyServer}`);
 }
 
-function addMappedProxy(router, localRootPath, pathPairs) {
+function addMappedProxy(router, port, localRootPath, pathPairs) {
   const localPaths = Object.getOwnPropertyNames(pathPairs);
   localPaths.forEach((localPath) => {
     const localFullPath = (localRootPath || '') + localPath;
-    addRemoteProxy(router, localFullPath, pathPairs[localPath]);
+    addRemoteProxy(router, port, localFullPath, pathPairs[localPath]);
   });
 }
 
-function addProxies(router, localRootPath, proxies) {
+function addProxies(router, port, localRootPath, proxies) {
   proxies.forEach((proxyUrl) => {
-    addRemoteProxy(router, localRootPath, proxyUrl);
+    addRemoteProxy(router, port, localRootPath, proxyUrl);
   });
 }
 
-function addProxy(router, localRootPath, remoteProxy) {
+function addProxy(router, port, localRootPath, remoteProxy) {
   if (typeof (remoteProxy) === 'string') {
-    addRemoteProxy(router, localRootPath, remoteProxy);
+    addRemoteProxy(router, port, localRootPath, remoteProxy);
   } else if (Array.isArray(remoteProxy)) {
-    addProxies(router, localRootPath, remoteProxy);
+    addProxies(router, port, localRootPath, remoteProxy);
   } else if (remoteProxy instanceof Object) {
-    addMappedProxy(router, localRootPath, remoteProxy);
+    addMappedProxy(router, port, localRootPath, remoteProxy);
   }
 }
 
@@ -266,62 +262,80 @@ function unhandled(res, acceptConfig) {
   }
 }
 
-sortedConfigs.forEach((siteConfig) => {
-  const siteHost = siteConfig.host || '*';
-  const router = express.Router();
+const servers = [];
 
-  console.log(`[host] ${siteHost}`);
+configsByPort.forEach((portConfigs, p) => {
+  const app = express();
+  app.use(morgan('combined'));
 
-  if (siteConfig.headers) {
-    router.use((_req, res, next) => {
-      Object.keys(siteConfig.headers)
-        .forEach((h) => res.setHeader(h, siteConfig.headers[h]));
-      next();
-    });
-  }
+  // Specific hosts first, catch-all last
+  const sorted = [
+    ...portConfigs.filter((c) => c.host && c.host !== '*'),
+    ...portConfigs.filter((c) => !c.host || c.host === '*'),
+  ];
 
-  if (siteConfig.folders) {
-    addStaticFolder(router, null, siteConfig.folders);
-  }
+  sorted.forEach((siteConfig) => {
+    const siteHost = siteConfig.host || '*';
+    const router = express.Router();
 
-  if (siteConfig.proxy) {
-    addProxy(router, null, siteConfig.proxy);
-  }
+    console.log(`[host] ${siteHost} → :${p}`);
 
-  if (siteConfig.unhandled) {
-    router.use((req, res, _next) => {
-      Object.keys(siteConfig.unhandled).forEach((acceptName) => {
-        if (!acceptName || acceptName === '*' || acceptName === '**') {
-          unhandled(res, siteConfig.unhandled[acceptName]);
-        } else if (req.accepts(acceptName)) {
-          unhandled(res, siteConfig.unhandled[acceptName]);
-        }
+    if (siteConfig.headers) {
+      router.use((_req, res, next) => {
+        Object.keys(siteConfig.headers)
+          .forEach((h) => res.setHeader(h, siteConfig.headers[h]));
+        next();
       });
-    });
-  }
+    }
 
-  if (siteHost === '*') {
-    app.use(router);
-  } else {
-    app.use((req, res, next) => {
-      if (req.hostname === siteHost) router(req, res, next);
-      else next();
-    });
-  }
-});
+    if (siteConfig.folders) {
+      addStaticFolder(router, p, null, siteConfig.folders);
+    }
 
-const server = app.listen(port, () => {
-  console.log(`[listen] http://localhost:${port}`);
-  if (process.send) {
-    process.send('ready');
-  }
+    if (siteConfig.proxy) {
+      addProxy(router, p, null, siteConfig.proxy);
+    }
+
+    if (siteConfig.unhandled) {
+      router.use((req, res, _next) => {
+        Object.keys(siteConfig.unhandled).forEach((acceptName) => {
+          if (!acceptName || acceptName === '*' || acceptName === '**') {
+            unhandled(res, siteConfig.unhandled[acceptName]);
+          } else if (req.accepts(acceptName)) {
+            unhandled(res, siteConfig.unhandled[acceptName]);
+          }
+        });
+      });
+    }
+
+    if (siteHost === '*') {
+      app.use(router);
+    } else {
+      app.use((req, res, next) => {
+        if (req.hostname === siteHost) router(req, res, next);
+        else next();
+      });
+    }
+  });
+
+  const server = app.listen(p, () => {
+    console.log(`[listen] http://localhost:${p}`);
+    if (process.send) process.send('ready');
+  });
+  servers.push(server);
 });
 
 function shutdown() {
   console.log('Closing all connections...');
-  server.close(() => {
-    console.log('Finished closing connections');
-    process.exit(0);
+  let remaining = servers.length;
+  servers.forEach((s) => {
+    s.close(() => {
+      remaining -= 1;
+      if (remaining === 0) {
+        console.log('Finished closing connections');
+        process.exit(0);
+      }
+    });
   });
 }
 
