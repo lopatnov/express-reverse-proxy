@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const express = require('express');
 const morgan = require('morgan');
 const proxy = require('express-http-proxy');
@@ -15,6 +16,20 @@ const possibleServerArgs = [
     subArgs: ['file name'],
     description: 'sets server configuration file. Default value of file name is "server-config.json"',
     samples: ['--config ./server-config.json', '--config ./configs/express-reverse-proxy.json'],
+  },
+  {
+    name: '--cluster',
+    description: 'manage the PM2 cluster. Action defaults to "start" when omitted',
+    samples: [
+      '--cluster',
+      '--cluster start',
+      '--cluster stop',
+      '--cluster restart',
+      '--cluster status',
+      '--cluster logs',
+      '--cluster monitor',
+      '--cluster start --config ./server-config.json',
+    ],
   },
 ];
 
@@ -77,6 +92,39 @@ function help(app, args) {
 if (serverArgs['--help']) {
   help('express-reverse-proxy', possibleServerArgs);
   process.exit();
+}
+
+if (serverArgs['--cluster']) {
+  const clusterArgIndex = process.argv.indexOf('--cluster');
+  const nextArg = process.argv[clusterArgIndex + 1];
+  const validActions = ['start', 'stop', 'restart', 'status', 'logs', 'monitor'];
+  const isAction = nextArg && !nextArg.startsWith('-') && validActions.includes(nextArg);
+
+  if (nextArg && !nextArg.startsWith('-') && !isAction) {
+    exitError(
+      `Unknown --cluster action: "${nextArg}". Valid actions: ${validActions.join(', ')}.`,
+      16,
+    );
+  }
+
+  const action = isAction ? nextArg : 'start';
+  const ecosystemConfig = path.join(__dirname, 'ecosystem.config.js');
+  const cwd = process.cwd();
+  const configPassthrough = serverArgs['--config']
+    ? ['--', '--config', serverArgs['--config'].args[0]]
+    : [];
+
+  const pm2Commands = {
+    start:   ['start',   ecosystemConfig, '--no-daemon', `--cwd=${cwd}`, ...configPassthrough],
+    stop:    ['stop',    'express-reverse-proxy'],
+    restart: ['restart', 'express-reverse-proxy', `--cwd=${cwd}`, ...configPassthrough],
+    status:  ['status'],
+    logs:    ['logs',    'express-reverse-proxy', '--lines', '200'],
+    monitor: ['monit'],
+  };
+
+  const result = spawnSync('pm2', pm2Commands[action], { stdio: 'inherit', shell: true });
+  process.exit(result.status ?? 0);
 }
 
 let configFile = './server-config.json';

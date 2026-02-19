@@ -111,9 +111,33 @@ Static files always take priority over proxy rules. Proxies are checked only whe
 |--------|-------------|
 | `--help` | Print help and exit |
 | `--config <file>` | Path to the JSON configuration file. Default: `server-config.json` |
+| `--cluster [action]` | Manage the PM2 cluster. Action defaults to `start` when omitted |
+
+### --cluster actions
+
+| Action | Description |
+|--------|-------------|
+| `start` | Start the PM2 cluster (default when action is omitted) |
+| `stop` | Stop all cluster instances |
+| `restart` | Restart all cluster instances |
+| `status` | Show PM2 process status table |
+| `logs` | Stream the last 200 log lines |
+| `monitor` | Open the PM2 real-time monitor |
 
 ```shell
-express-reverse-proxy --config ./configs/dev.json
+express-reverse-proxy --cluster
+express-reverse-proxy --cluster start
+express-reverse-proxy --cluster stop
+express-reverse-proxy --cluster restart
+express-reverse-proxy --cluster status
+express-reverse-proxy --cluster logs
+express-reverse-proxy --cluster monitor
+```
+
+Pass a custom config to cluster workers with `--config`:
+
+```shell
+express-reverse-proxy --cluster start --config ./configs/prod.json
 ```
 
 ---
