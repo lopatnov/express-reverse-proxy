@@ -1,10 +1,14 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
-const { spawnSync } = require('child_process');
-const express = require('express');
-const morgan = require('morgan');
-const proxy = require('express-http-proxy');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { spawnSync } from 'child_process';
+import express from 'express';
+import morgan from 'morgan';
+import proxy from 'express-http-proxy';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const possibleServerArgs = [
   {
@@ -108,7 +112,7 @@ if (serverArgs['--cluster']) {
   }
 
   const action = isAction ? nextArg : 'start';
-  const ecosystemConfig = path.join(__dirname, 'ecosystem.config.js');
+  const ecosystemConfig = path.join(__dirname, 'ecosystem.config.cjs');
   const cwd = process.cwd();
   const configPassthrough = serverArgs['--config']
     ? ['--', '--config', serverArgs['--config'].args[0]]

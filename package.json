@@ -3,6 +3,7 @@
   "email": "oleksandr@lopatnov.cv.ua",
   "version": "2.0.0",
   "description": "Node.js CLI tool to serve static front-end files with a reverse proxy for back-end APIs",
+  "type": "module",
   "author": "lopatnov",
   "main": "server.js",
   "bin": {
@@ -21,7 +22,16 @@
   ],
   "scripts": {
     "start": "node ./server.js",
-    "pm2-start": "pm2 start ecosystem.config.js --no-daemon",
+    "demo:backends": "concurrently \"node demo/server-a.js\" \"node demo/server-b.js\"",
+    "demo:proxy": "node ./server.js --config ./demo/server-config.json",
+    "demo": "concurrently \"npm run demo:backends\" \"npm run demo:proxy\"",
+    "test": "start-server-and-test demo http://localhost:8080 cypress:run",
+    "test:open": "start-server-and-test demo http://localhost:8080 cypress:open",
+    "cypress:run": "cypress run",
+    "cypress:open": "cypress open",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "pm2-start": "pm2 start ecosystem.config.cjs --no-daemon",
     "pm2-stop": "pm2 stop express-reverse-proxy",
     "pm2-status": "pm2 status",
     "pm2-logs": "pm2 logs --lines 200",
@@ -50,8 +60,9 @@
     "pm2": "^6.0.14"
   },
   "devDependencies": {
-    "eslint": "^8.57.1",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.32.0"
+    "@biomejs/biome": "^2.4.2",
+    "concurrently": "^9.2.1",
+    "cypress": "^15.10.0",
+    "start-server-and-test": "^2.1.3"
   }
 }

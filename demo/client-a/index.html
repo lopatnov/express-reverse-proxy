@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client A — Users API · express-reverse-proxy</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">express-reverse-proxy</span>
+      <span class="badge">Client A · :8080</span>
+      <a class="gh-link" href="https://github.com/lopatnov/express-reverse-proxy" target="_blank" rel="noopener">
+        View on GitHub ↗
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Users API Demo</h1>
+      <p class="subtitle">
+        Static files served on <code>:8080</code> · API proxied to
+        <code>localhost:4001</code> (Users service)
+      </p>
+    </section>
+
+    <section class="cards">
+      <div class="card">
+        <div class="card-header">
+          <span class="method get">GET</span>
+          <code>/api/users</code>
+        </div>
+        <p class="card-desc">Fetch all users from the Users service.</p>
+        <button class="btn" data-path="/api/users">Send request</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="method get">GET</span>
+          <code>/api/users/1</code>
+        </div>
+        <p class="card-desc">Fetch a single user by ID.</p>
+        <button class="btn" data-path="/api/users/1">Send request</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="method get">GET</span>
+          <code>/api/users/99</code>
+        </div>
+        <p class="card-desc">Fetch a non-existent user — expect 404.</p>
+        <button class="btn" data-path="/api/users/99">Send request</button>
+      </div>
+    </section>
+
+    <section class="response-section">
+      <div class="response-header">
+        <span>Response</span>
+        <span id="status-badge" class="status-badge"></span>
+        <button class="btn-clear" id="clear-btn" hidden>Clear</button>
+      </div>
+      <pre id="response-output"><span class="placeholder">← Click a button to send an API request</span></pre>
+    </section>
+
+    <section class="info">
+      <h2>How it works</h2>
+      <div class="flow">
+        <div class="flow-step">Browser</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step highlight">express-reverse-proxy<br/><small>:8080</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Users API<br/><small>:4001</small></div>
+      </div>
+      <p>
+        Requests to <code>/api/*</code> are transparently forwarded to the backend.
+        Static HTML/CSS/JS is served directly.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Apache-2.0 · <a href="https://github.com/lopatnov" target="_blank" rel="noopener">lopatnov</a></span>
+    <span>Client B demo → <a href="http://localhost:8081">localhost:8081</a></span>
+  </footer>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

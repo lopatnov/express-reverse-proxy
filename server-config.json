@@ -1,11 +1,11 @@
 {
   "port": 8080,
-  "headers": {
-    "Access-Control-Allow-Origin": "*"
-  },
-  "folders": "www",
+  "folders": "demo/client-a",
   "proxy": {
-    "/api": "https://stat.ripe.net"
+    "/api": "http://localhost:4001"
+  },
+  "headers": {
+    "X-Powered-By": "express-reverse-proxy"
   },
   "unhandled": {
     "html": {
@@ -17,16 +17,8 @@
     "json": {
       "status": 404,
       "send": {
-        "error": "JSON Not Found"
+        "error": "Not Found"
       }
-    },
-    "xml": {
-      "status": 404,
-      "send": "<error>Not Found</error>"
-    },
-    "*": {
-      "status": 404,
-      "file": "./www/not-found.txt"
     }
   }
 }
