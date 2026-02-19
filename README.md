@@ -259,6 +259,41 @@ Each `Accept` key supports these response options:
 | `send` | `string \| object` | Inline response body (text or JSON) |
 | `file` | `string` | Path to file whose contents are sent as body |
 
+### host
+
+Route requests to this configuration based on the HTTP `Host` header. Enables serving multiple sites on a single port.
+
+| Value | Behavior |
+|-------|-----------|
+| `"app.localhost"` | Only handles requests whose `Host` header matches exactly |
+| `"*"` or omitted | Catch-all — handles any request not matched by another entry |
+
+To use multi-site mode, make the config file an **array** instead of an object. Specific hosts are always checked before the catch-all:
+
+```json
+[
+  {
+    "host": "app.localhost",
+    "port": 8080,
+    "folders": "www",
+    "proxy": { "/api": "localhost:4000" }
+  },
+  {
+    "host": "admin.localhost",
+    "folders": "admin",
+    "proxy": { "/api": "localhost:5000" }
+  },
+  {
+    "host": "*",
+    "folders": "fallback"
+  }
+]
+```
+
+> Two entries with the same `host` value cause a startup error.
+>
+> `port` is global — the server listens on one port. Use the first entry's `port` (or `PORT` env var) to set it.
+
 ---
 
 ## Configuration Recipes

@@ -16,12 +16,6 @@ const possibleServerArgs = [
     description: 'sets server configuration file. Default value of file name is "server-config.json"',
     samples: ['--config ./server-config.json', '--config ./configs/express-reverse-proxy.json'],
   },
-  // {
-  //   name: '--cluster',
-  //   subArgs: ['command: start | stop'],
-  //   description: 'starts or stops server cluster. By default server starts without cluster',
-  //   samples: ['--cluster start', '--cluster stop'],
-  // },
 ];
 
 function exitError(msg, code = -1) {
@@ -92,110 +86,115 @@ if (serverArgs['--config']) {
     configFile = path.join(configFile, './server-config.json');
   }
 }
+
 const DEFAULT_CONFIG = { port: 8000, folders: '.' };
 
-let config;
+let rawConfig;
 if (!fs.existsSync(configFile)) {
   if (serverArgs['--config']) {
     exitError(`Configuration file not found: "${configFile}"`, 404);
   }
   console.warn(`\x1b[33m[config] "${configFile}" not found — using defaults (port: 8000, folders: ".")\x1b[0m`);
-  config = DEFAULT_CONFIG;
+  rawConfig = DEFAULT_CONFIG;
 } else {
   console.log(`[config] ${configFile}`);
-  config = JSON.parse(fs.readFileSync(configFile));
+  rawConfig = JSON.parse(fs.readFileSync(configFile));
 }
+
+const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
+
+// Validate duplicate hosts
+const seen = new Set();
+configs.forEach((c) => {
+  const h = c.host || '*';
+  if (seen.has(h)) {
+    exitError(`Duplicate host in configuration: "${h}"`, 1);
+  }
+  seen.add(h);
+});
+
+// Specific hosts first, catch-all last
+const sortedConfigs = [
+  ...configs.filter((c) => c.host && c.host !== '*'),
+  ...configs.filter((c) => !c.host || c.host === '*'),
+];
+
 const app = express();
-const host = 'localhost';
-const port = (config && config.port) || process.env.PORT || 8080;
+const port = process.env.PORT
+  || configs.reduce((p, c) => p || c.port, null)
+  || 8000;
 
 app.use(morgan('combined'));
 
-if (config.headers) {
-  app.use((req, res, next) => {
-    const headers = Object.keys(config.headers);
-    headers.forEach((header) => res.setHeader(header, config.headers[header]));
-    next();
-  });
-}
-
-function addStaticFolderByName(urlPath, folder) {
+function addStaticFolderByName(router, urlPath, folder) {
   let folderPath = folder;
   if (!path.isAbsolute(folder)) {
     folderPath = path.join(process.cwd(), folder);
   }
   if (urlPath) {
-    app.use(urlPath, express.static(folderPath));
+    router.use(urlPath, express.static(folderPath));
   } else {
-    app.use(express.static(folderPath));
+    router.use(express.static(folderPath));
   }
-  console.log(`[folder] http://localhost:${port}/${urlPath || ''} <===> ${folderPath}`);
+  console.log(`[folder] http://localhost:${port}${urlPath || ''} <===> ${folderPath}`);
 }
 
-function addMappedStaticFolders(rootPath, folders) {
+function addMappedStaticFolders(router, rootPath, folders) {
   const pathStart = rootPath || '';
   const keys = Object.getOwnPropertyNames(folders);
   keys.forEach((key) => {
     const folderPath = pathStart + key;
-    addStaticFolder(folderPath, folders[key]);
+    addStaticFolder(router, folderPath, folders[key]);
   });
 }
 
-function addStaticFolders(rootPath, folders) {
+function addStaticFolders(router, rootPath, folders) {
   folders.forEach((folder) => {
-    addStaticFolder(rootPath, folder);
+    addStaticFolder(router, rootPath, folder);
   });
 }
 
-function addStaticFolder(rootPath, folder) {
+function addStaticFolder(router, rootPath, folder) {
   if (typeof (folder) === 'string') {
-    addStaticFolderByName(rootPath, folder);
+    addStaticFolderByName(router, rootPath, folder);
   } else if (Array.isArray(folder)) {
-    addStaticFolders(rootPath, folder);
+    addStaticFolders(router, rootPath, folder);
   } else if (folder instanceof Object) {
-    addMappedStaticFolders(rootPath, folder);
+    addMappedStaticFolders(router, rootPath, folder);
   }
 }
 
-if (config && config.folders) {
-  addStaticFolder(null, config.folders);
-}
-
-function addRemoteProxy(urlPath, proxyServer) {
+function addRemoteProxy(router, urlPath, proxyServer) {
   if (urlPath) {
-    app.use(urlPath, proxy(proxyServer));
+    router.use(urlPath, proxy(proxyServer));
   } else {
-    app.use(proxy(proxyServer));
+    router.use(proxy(proxyServer));
   }
-  console.log(`[proxy] http://localhost:${port}/${urlPath || ''} <===> ${proxyServer}`);
+  console.log(`[proxy] http://localhost:${port}${urlPath || ''} <===> ${proxyServer}`);
 }
 
-function addMappedProxy(localRootPath, pathPairs) {
+function addMappedProxy(router, localRootPath, pathPairs) {
   const localPaths = Object.getOwnPropertyNames(pathPairs);
   localPaths.forEach((localPath) => {
     const localFullPath = (localRootPath || '') + localPath;
-    addRemoteProxy(localFullPath, pathPairs[localPath]);
+    addRemoteProxy(router, localFullPath, pathPairs[localPath]);
   });
 }
 
-function addProxies(localRootPath, proxies) {
+function addProxies(router, localRootPath, proxies) {
   proxies.forEach((proxyUrl) => {
-    addRemoteProxy(localRootPath, proxyUrl);
+    addRemoteProxy(router, localRootPath, proxyUrl);
   });
 }
 
-function addProxy(localRootPath, remoteProxy) {
+function addProxy(router, localRootPath, remoteProxy) {
   if (typeof (remoteProxy) === 'string') {
-    addRemoteProxy(localRootPath, remoteProxy);
+    addRemoteProxy(router, localRootPath, remoteProxy);
   } else if (Array.isArray(remoteProxy)) {
-    addProxies(localRootPath, remoteProxy);
+    addProxies(router, localRootPath, remoteProxy);
   } else if (remoteProxy instanceof Object) {
-    addMappedProxy(localRootPath, remoteProxy);
+    addMappedProxy(router, localRootPath, remoteProxy);
   }
-}
-
-if (config && config.proxy) {
-  addProxy(null, config.proxy);
 }
 
 function unhandled(res, acceptConfig) {
@@ -219,20 +218,52 @@ function unhandled(res, acceptConfig) {
   }
 }
 
-if (config && config.unhandled) {
-  app.use((req, res, next) => {
-    Object.keys(config.unhandled).forEach((acceptName) => {
-      if (!acceptName || acceptName === '*' || acceptName === '**') {
-        unhandled(res, config.unhandled[acceptName]);
-      } else if (req.accepts(acceptName)) {
-        unhandled(res, config.unhandled[acceptName]);
-      }
+sortedConfigs.forEach((siteConfig) => {
+  const siteHost = siteConfig.host || '*';
+  const router = express.Router();
+
+  console.log(`[host] ${siteHost}`);
+
+  if (siteConfig.headers) {
+    router.use((_req, res, next) => {
+      Object.keys(siteConfig.headers)
+        .forEach((h) => res.setHeader(h, siteConfig.headers[h]));
+      next();
     });
-  });
-}
+  }
+
+  if (siteConfig.folders) {
+    addStaticFolder(router, null, siteConfig.folders);
+  }
+
+  if (siteConfig.proxy) {
+    addProxy(router, null, siteConfig.proxy);
+  }
+
+  if (siteConfig.unhandled) {
+    router.use((req, res, _next) => {
+      Object.keys(siteConfig.unhandled).forEach((acceptName) => {
+        if (!acceptName || acceptName === '*' || acceptName === '**') {
+          unhandled(res, siteConfig.unhandled[acceptName]);
+        } else if (req.accepts(acceptName)) {
+          unhandled(res, siteConfig.unhandled[acceptName]);
+        }
+      });
+    });
+  }
+
+  if (siteHost === '*') {
+    app.use(router);
+  } else {
+    app.use((req, res, next) => {
+      if (req.hostname === siteHost) router(req, res, next);
+      else next();
+    });
+  }
+});
 
 const server = app.listen(port, () => {
-  console.log(`[listen] http://${host}:${port}`);
+  console.log(`[listen] http://localhost:${port}`);
   if (process.send) {
     process.send('ready');
   }
