@@ -92,12 +92,19 @@ if (serverArgs['--config']) {
     configFile = path.join(configFile, './server-config.json');
   }
 }
-if (!fs.existsSync(configFile)) {
-  exitError(`Configuration file not found. Please add "${configFile}" file or provide a path through "--config <file name>" option`, 404);
-}
-console.log(`[config] ${configFile}`);
+const DEFAULT_CONFIG = { port: 8000, folders: '.' };
 
-const config = JSON.parse(fs.readFileSync(configFile));
+let config;
+if (!fs.existsSync(configFile)) {
+  if (serverArgs['--config']) {
+    exitError(`Configuration file not found: "${configFile}"`, 404);
+  }
+  console.warn(`\x1b[33m[config] "${configFile}" not found — using defaults (port: 8000, folders: ".")\x1b[0m`);
+  config = DEFAULT_CONFIG;
+} else {
+  console.log(`[config] ${configFile}`);
+  config = JSON.parse(fs.readFileSync(configFile));
+}
 const app = express();
 const host = 'localhost';
 const port = (config && config.port) || process.env.PORT || 8080;

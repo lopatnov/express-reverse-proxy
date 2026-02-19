@@ -1,79 +1,154 @@
-# Express reverse proxy CLI tool [![LinkedIn](https://img.shields.io/badge/LinkedIn-lopatnov-informational?style=social&logo=linkedin)](https://www.linkedin.com/in/lopatnov/)
+# express-reverse-proxy
 
-A back-end (Node.js) development tool to serve front-end projects with back-end reverse proxy for API. Configure a tool and serve your front-end projects.
+> Lightweight Node.js CLI tool to serve static front-end files and reverse-proxy API requests to a back-end server.
+> Zero-config start, flexible JSON configuration, PM2 and Docker ready.
+
+[![npm downloads](https://img.shields.io/npm/dt/@lopatnov/express-reverse-proxy)](https://www.npmjs.com/package/@lopatnov/express-reverse-proxy)
+[![npm version](https://badge.fury.io/js/%40lopatnov%2Fexpress-reverse-proxy.svg)](https://www.npmjs.com/package/@lopatnov/express-reverse-proxy)
+[![License](https://img.shields.io/github/license/lopatnov/express-reverse-proxy)](https://github.com/lopatnov/express-reverse-proxy/blob/master/LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/lopatnov/express-reverse-proxy)](https://github.com/lopatnov/express-reverse-proxy/issues)
+[![GitHub stars](https://img.shields.io/github/stars/lopatnov/express-reverse-proxy)](https://github.com/lopatnov/express-reverse-proxy/stargazers)
+
+---
+
+## Table of Contents
 
 - [Installation](#installation)
-- [Run installed server](#run-installed-server)
-- [Run without installation](#run-without-installation)
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
+- [CLI Options](#cli-options)
 - [Configuration](#configuration)
+  - [port](#port)
+  - [headers](#headers)
+  - [folders](#folders)
+  - [proxy](#proxy)
+  - [unhandled](#unhandled)
 - [Configuration Recipes](#configuration-recipes)
-- [Rights and Agreements](#rights-and-agreements)
+- [Docker & PM2](#docker--pm2)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Built With](#built-with)
+- [License](#license)
+
+---
 
 ## Installation
 
-[![https://nodei.co/npm/@lopatnov/express-reverse-proxy.png?downloads=true&downloadRank=true&stars=true](https://nodei.co/npm/@lopatnov/express-reverse-proxy.png?downloads=true&downloadRank=true&stars=true)](https://www.npmjs.com/package/@lopatnov/express-reverse-proxy)
+**Global install (recommended for CLI use):**
+
+```shell
+npm install -g @lopatnov/express-reverse-proxy
+```
+
+**Local dev dependency:**
 
 ```shell
 npm install --save-dev @lopatnov/express-reverse-proxy
 ```
 
-## Run installed server
+**Run without installing:**
+
+```shell
+npx @lopatnov/express-reverse-proxy
+```
+
+---
+
+## Quick Start
+
+1. Create a `server-config.json` in your project root:
+
+```json
+{
+  "port": 8080,
+  "folders": "www",
+  "proxy": {
+    "/api": "localhost:4000"
+  }
+}
+```
+
+2. Start the server:
 
 ```shell
 express-reverse-proxy
 ```
 
-### Running Options
+Your front-end files from `./www` are now served at `http://localhost:8080`, and any request to `/api/*` is forwarded to your back-end at `http://localhost:4000`.
 
-- `--help` shows command line help
-- `--config <file name>` sets server configuration file. Default value is `server-config.json`. See [configuration file example by this link](./server-config.json).
+> **No config file?** If `server-config.json` is not found, the server starts with built-in defaults: port `8000`, serving files from the current directory (`.`). A warning is printed to the console.
+
+See [server-config.json](./server-config.json) for a full configuration example.
+
+---
+
+## How It Works
+
+Every incoming request is processed in order:
+
+```
+Request
+  │
+  ├─▶  Custom headers applied (if configured)
+  │
+  ├─▶  Static files checked (folders, in order)
+  │       └─▶  File found → serve it
+  │
+  ├─▶  Reverse proxy rules checked (proxy)
+  │       └─▶  Path matches → forward to back-end → return response
+  │
+  └─▶  No match → unhandled handler (by Accept header)
+            └─▶  Return status + body or redirect
+```
+
+Static files always take priority over proxy rules. Proxies are checked only when no file matches.
+
+---
+
+## CLI Options
+
+| Option | Description |
+|--------|-------------|
+| `--help` | Print help and exit |
+| `--config <file>` | Path to the JSON configuration file. Default: `server-config.json` |
 
 ```shell
-express-reverse-proxy --config ./server-config.json
+express-reverse-proxy --config ./configs/dev.json
 ```
 
-## Run without installation
-
-```bash
-npx @lopatnov/express-reverse-proxy
-```
+---
 
 ## Configuration
 
-Edit `server-config.json` file
+All configuration lives in a single JSON file (default `server-config.json`).
 
-![run process](./www/assets/img/process.png)
+### port
 
-### Configure server port
+The port the server listens on. Defaults to `8080`. Can also be set via the `PORT` environment variable.
 
 ```json
 {
   "port": 8080
-  // ...
 }
 ```
 
-To configure server port, edit `port` variable. The default server port is `8080`.
+### headers
 
-### Configure `headers` variable
-
-To set headers for all requests use `headers` variable
+Add headers to every response — useful for CORS in development.
 
 ```json
 {
-  // ...
   "headers": {
     "Access-Control-Allow-Origin": "*"
   }
-  // ...
 }
 ```
 
-### Configure `folders` variable
+### folders
 
-The `folders` is a variable to serve static files such as images, CSS files, and JavaScript files.
+Serve static files. Supports three forms:
 
-#### Serve static files from a single directory
+**Single directory:**
 
 ```json
 {
@@ -81,9 +156,7 @@ The `folders` is a variable to serve static files such as images, CSS files, and
 }
 ```
 
-This configuration means that the server will serve static files from a local `www` directory. The `folders` variable can changed by a value of relative path like "./www", "../../my-nice-project/www" or "./project/my-front-end-files".
-
-#### Serve static files from multiple directories
+**Multiple directories** (searched in order):
 
 ```json
 {
@@ -91,13 +164,7 @@ This configuration means that the server will serve static files from a local `w
 }
 ```
 
-This configuration means that the server will serve static files from multiple directories:
-
-- `./www`
-- `./mock-json`
-- `../../images`
-
-#### Map url path to serve static files from directories
+**URL path mapping** (nested objects supported):
 
 ```json
 {
@@ -113,106 +180,92 @@ This configuration means that the server will serve static files from multiple d
 }
 ```
 
-This configuration means that the server will serve static files from multiple directories. The url path maps to this directories.
+The above maps:
 
-In example above you can see the next mapping:
+| URL path | Local directory |
+|----------|----------------|
+| `/` | `dist` |
+| `/api` | `./mock-json` |
+| `/assets/images` | `./images` |
+| `/assets/css` | `./scss/dist` |
+| `/assets/script` | `./scripts` |
 
-```txt
-url: /
-directory: dist
+### proxy
 
-url: /api
-directory: ./mock-json
+Forward requests to a back-end server. Supports three forms:
 
-url: /assets/images
-directory: ./images
-
-url: /assets/css
-directory: ./scss/dist
-
-url: /assets/script
-directory: ./scripts
-```
-
-### Configure `proxy` variable
-
-The `proxy` variable intended for request redirect to 3rd-party server and getting result of this response.
-
-#### Connect API to front-end project
+**Proxy everything to one server:**
 
 ```json
 {
-  "port": 4200,
-  "folders": "www",
+  "proxy": "localhost:4000"
+}
+```
+
+**Map a URL path prefix to a server:**
+
+```json
+{
   "proxy": {
-    "/api": "localhost:8000"
+    "/api": "localhost:4000"
   }
 }
 ```
 
-This configuration means that the server will serve static files from a local `www` directory on 4200 port with remote API on <http://localhost:8000>. When the web-site makes request to "/api" path, the request will redirect to remote server with <localhost:8000> address.
+**Multiple proxy rules:**
 
-### Configure `unhandled` variable
-
-To handle unhandled requests use `unhandled` variable. It's behavior depends on Accept header. It can be used any accept header.
-
-```json5
+```json
 {
-  ...
+  "proxy": [
+    { "/api": "localhost:4000" },
+    { "/auth": "localhost:5000" }
+  ]
+}
+```
+
+### unhandled
+
+Control responses when no static file or proxy rule matches. Rules are selected by the request's `Accept` header.
+
+```json
+{
   "unhandled": {
-    "html": { // <-- Accept header for html requests
-      ...
+    "html": {
+      "status": 307,
+      "headers": { "Location": "/" }
     },
-    "json": { // <-- Accept header for json requests
-      ...
+    "json": {
+      "status": 404,
+      "send": { "error": "Not Found" }
     },
-    "xml": { // <-- Accept header for xml requests
-      ...
+    "xml": {
+      "status": 404,
+      "send": "<error>Not Found</error>"
     },
-    "*": { // <-- Any accept header
-      ...
+    "*": {
+      "status": 404,
+      "file": "./www/not-found.txt"
     }
   }
-  ...
 }
 ```
 
-Each accept header can contain its options.
+Each `Accept` key supports these response options:
 
-```json5
-"html": { // <-- Accept header for HTML requests (for example)
-  "status": 307, // <-- Response status code Temporary redirect, see 307 http status code
-  "headers": {  // <-- Headers
-    "Location": "/"
-  }
-},
+| Option | Type | Description |
+|--------|------|-------------|
+| `status` | `number` | HTTP response status code |
+| `headers` | `object` | Additional response headers |
+| `send` | `string \| object` | Inline response body (text or JSON) |
+| `file` | `string` | Path to file whose contents are sent as body |
 
-"json": { // <-- Accept header for json requests
-  "status": 404, // <-- Response status code Not Found
-  "send": { // Response JSON object
-    "error": "JSON Not Found"
-  }
-},
-
-"xml": { // <-- Accept header for XML requests
-  "status": 404, // <-- Response status code Not Found
-  "send": "<error>Not Found</error>" // Response is text
-},
-
-"*": { // <-- Any accept header
-  "status": 404,  // <-- Response status code Not Found
-  "file": "./www/not-found.txt" // Response read from file "./www/not-found.txt"
-}
-```
+---
 
 ## Configuration Recipes
 
-### Request a static file, than make request to back-end
+### Static files first, then fall back to back-end
 
-Server listening in 8080 port
-
-- Request --> Search static file in "www" folder --> File found --> Response is the file
-- Request --> Search static file in "www" folder --> File not found --> Make request to back-end <http://localhost:4000/current-path> --> Response from the back-end
+All unmatched requests are forwarded to `localhost:4000`.
 
 ```json
 {
@@ -222,13 +275,12 @@ Server listening in 8080 port
 }
 ```
 
-### Request API by path that starts as `/api`, otherwise request front-end by default
+- `GET /index.html` → served from `./www/index.html`
+- `GET /missing` → proxied to `http://localhost:4000/missing`
 
-Server listening in 8080 port
+### Static files + API on a specific path
 
-- Request --> Search static file in "www" folder --> File found --> Response is the file
-- Request --> Search static file in "www" folder --> File not found --> Response 404 Not Found
-- Request /api/current-path --> Make request to back-end <http://localhost:4000/current-path> --> Response from the back-end
+Only `/api/*` requests go to the back-end; everything else stays local.
 
 ```json
 {
@@ -240,8 +292,155 @@ Server listening in 8080 port
 }
 ```
 
-## Rights and Agreements
+- `GET /index.html` → served from `./www/index.html`
+- `GET /api/users` → proxied to `http://localhost:4000/users`
+- `GET /missing` → 404 Not Found
 
-License [Apache-2.0](https://github.com/lopatnov/static-server-express/blob/master/LICENSE)
+### CORS headers + rich error responses
 
-Copyright 2020–2022 Oleksandr Lopatnov
+```json
+{
+  "port": 8080,
+  "headers": {
+    "Access-Control-Allow-Origin": "*"
+  },
+  "folders": "www",
+  "proxy": {
+    "/api": "https://stat.ripe.net"
+  },
+  "unhandled": {
+    "html": {
+      "status": 307,
+      "headers": { "Location": "/" }
+    },
+    "json": {
+      "status": 404,
+      "send": { "error": "JSON Not Found" }
+    },
+    "xml": {
+      "status": 404,
+      "send": "<error>Not Found</error>"
+    },
+    "*": {
+      "status": 404,
+      "file": "./www/not-found.txt"
+    }
+  }
+}
+```
+
+---
+
+## Docker & PM2
+
+### Docker
+
+A `Dockerfile` is included. Build and run:
+
+```shell
+docker build -t express-reverse-proxy .
+docker run -p 8080:8080 -v $(pwd)/server-config.json:/app/server-config.json express-reverse-proxy
+```
+
+### PM2
+
+The included `ecosystem.config.js` runs the server in **cluster mode** — PM2 acts as a load balancer and all worker processes share a single port through the Node.js cluster module. Without cluster mode each instance would try to bind its own copy of the port and all but the first would fail.
+
+```javascript
+// ecosystem.config.js
+{
+  instances: 'max',   // one worker per CPU core
+  exec_mode: 'cluster'
+}
+```
+
+Run via npm scripts:
+
+| Script | Description |
+|--------|-------------|
+| `npm run pm2-start` | Start cluster (max CPU cores) via `ecosystem.config.js` |
+| `npm run pm2-stop` | Stop all instances |
+| `npm run pm2-status` | Show process status |
+| `npm run pm2-logs` | Show last 200 log lines |
+| `npm run pm2-monitor` | Open real-time monitor |
+
+```shell
+npm run pm2-start
+```
+
+---
+
+## Troubleshooting
+
+**Server starts but static files are not served**
+
+- Check that the path in `folders` is correct relative to where you run the command, not relative to `server-config.json`.
+- Verify the directory exists: `ls ./www` (or the path you configured).
+
+**Proxy requests return 502 or fail silently**
+
+- Confirm the back-end is running and reachable: `curl http://localhost:4000/api/health`.
+- Make sure the proxy address does **not** include a protocol prefix — use `localhost:4000`, not `http://localhost:4000`.
+
+**Port already in use**
+
+```
+Error: listen EADDRINUSE :::8080
+```
+
+Either change `port` in `server-config.json`, or set the environment variable:
+
+```shell
+PORT=9090 express-reverse-proxy
+```
+
+**CORS errors in the browser**
+
+Add a `headers` block to your config:
+
+```json
+{
+  "headers": {
+    "Access-Control-Allow-Origin": "*"
+  }
+}
+```
+
+**`server-config.json` not found**
+
+If no config file is found, the server starts with built-in defaults — port `8000`, serving files from `.` (the current directory) — and prints a yellow warning. This is useful for a quick local file preview.
+
+To use your own config, either place `server-config.json` in the working directory or specify a path with `--config`:
+
+```shell
+express-reverse-proxy --config ./configs/dev.json
+```
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+- Bug reports → [open an issue](https://github.com/lopatnov/express-reverse-proxy/issues)
+- Security vulnerabilities → [GitHub Security Advisories](https://github.com/lopatnov/express-reverse-proxy/security/advisories/new) _(do not use public issues)_
+- Questions → [Discussions](https://github.com/lopatnov/express-reverse-proxy/discussions)
+- Found it useful? A [star on GitHub](https://github.com/lopatnov/express-reverse-proxy) helps others discover the project
+
+---
+
+## Built With
+
+- [Node.js](https://nodejs.org/) — JavaScript runtime
+- [Express](https://expressjs.com/) — HTTP server framework
+- [express-http-proxy](https://github.com/villadora/express-http-proxy) — reverse proxy middleware
+- [Morgan](https://github.com/expressjs/morgan) — HTTP request logger
+- [PM2](https://pm2.keymetrics.io/) — production process manager with clustering
+- [ESLint](https://eslint.org/) + [Airbnb style guide](https://github.com/airbnb/javascript) — code linting
+- [Docker](https://www.docker.com/) — containerization
+
+---
+
+## License
+
+[Apache-2.0](LICENSE) © 2020–2026 [Oleksandr Lopatnov](https://github.com/lopatnov) · [LinkedIn](https://www.linkedin.com/in/lopatnov/)
