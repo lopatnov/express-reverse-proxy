@@ -201,6 +201,13 @@ express-reverse-proxy --cluster restart --cluster-config /etc/myapp/ecosystem.co
 
 All configuration lives in a single JSON file (default `server-config.json`).
 
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8000` | Overrides the port when it is not set in the config file |
+| `NODE_ENV` | — | Passed through to PM2 env profiles (`env` / `env_development`) |
+
 ### port
 
 The port the server listens on. Defaults to `8000`. Can also be set via the `PORT` environment variable.

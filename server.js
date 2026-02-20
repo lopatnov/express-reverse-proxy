@@ -174,6 +174,7 @@ const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
 const seen = new Set();
 configs.forEach((c) => {
   const p = parseInt(c.port || process.env.PORT || 8000, 10);
+  if (p < 1 || p > 65535) exitError(`Invalid port: ${p}`, 1);
   const key = `${p}:${c.host || '*'}`;
   if (seen.has(key)) {
     exitError(`Duplicate host "${c.host || '*'}" on port ${p}`, 1);
@@ -341,16 +342,31 @@ configsByPort.forEach((portConfigs, p) => {
     console.log(`[listen] http://localhost:${p}`);
     if (process.send) process.send('ready');
   });
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      exitError(`Port ${p} is already in use`, 1);
+    }
+    throw err;
+  });
   servers.push(server);
 });
 
 function shutdown() {
   console.log('Closing all connections...');
+  const timer = setTimeout(() => {
+    console.error('Forced exit after timeout');
+    process.exit(1);
+  }, 10_000).unref();
   let remaining = servers.length;
+  if (remaining === 0) {
+    clearTimeout(timer);
+    process.exit(0);
+  }
   servers.forEach((s) => {
     s.close(() => {
       remaining -= 1;
       if (remaining === 0) {
+        clearTimeout(timer);
         console.log('Finished closing connections');
         process.exit(0);
       }
@@ -359,7 +375,7 @@ function shutdown() {
 }
 
 process.on('message', (msg) => {
-  if (msg.toLowerCase() === 'shutdown') {
+  if (typeof msg === 'string' && msg.toLowerCase() === 'shutdown') {
     shutdown();
   }
 });

@@ -6,9 +6,11 @@
   "type": "module",
   "author": "lopatnov",
   "main": "server.js",
+  "exports": { ".": "./server.js" },
   "bin": {
     "express-reverse-proxy": "./server.js"
   },
+  "engines": { "node": ">=18.0.0" },
   "keywords": [
     "reverse",
     "proxy",
@@ -44,7 +46,10 @@
   },
   "homepage": "https://lopatnov.github.io/express-reverse-proxy/",
   "files": [
-    "**/*"
+    "server.js",
+    "ecosystem.config.cjs",
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"
