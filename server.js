@@ -4,9 +4,14 @@ import fs from 'node:fs';
 import https from 'node:https';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import compression from 'compression';
+import cors from 'cors';
 import express from 'express';
 import proxy from 'express-http-proxy';
+import helmet from 'helmet';
 import morgan from 'morgan';
+import responseTime from 'response-time';
+import favicon from 'serve-favicon';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -360,6 +365,30 @@ configsByPort.forEach((portConfigs, p) => {
     const router = express.Router();
 
     console.log(`[host] ${siteHost} → :${p}`);
+
+    if (siteConfig.responseTime) {
+      const opts = typeof siteConfig.responseTime === 'object' ? siteConfig.responseTime : {};
+      router.use(responseTime(opts));
+    }
+
+    if (siteConfig.cors) {
+      const opts = typeof siteConfig.cors === 'object' ? siteConfig.cors : {};
+      router.use(cors(opts));
+    }
+
+    if (siteConfig.compression) {
+      const opts = typeof siteConfig.compression === 'object' ? siteConfig.compression : {};
+      router.use(compression(opts));
+    }
+
+    if (siteConfig.helmet) {
+      const opts = typeof siteConfig.helmet === 'object' ? siteConfig.helmet : {};
+      router.use(helmet(opts));
+    }
+
+    if (siteConfig.favicon) {
+      router.use(favicon(path.resolve(configDir, siteConfig.favicon)));
+    }
 
     if (siteConfig.headers) {
       router.use((_req, res, next) => {

@@ -20,11 +20,19 @@
 - [CLI Options](#cli-options)
 - [Configuration](#configuration)
   - [port](#port)
+  - [logging](#logging)
+  - [hotReload](#hotreload)
+  - [compression](#compression)
+  - [helmet](#helmet)
+  - [cors](#cors)
+  - [favicon](#favicon)
+  - [responseTime](#responsetime)
   - [headers](#headers)
   - [folders](#folders)
   - [proxy](#proxy)
   - [unhandled](#unhandled)
   - [host](#host)
+  - [ssl](#ssl)
 - [Configuration Recipes](#configuration-recipes)
 - [Docker & PM2](#docker--pm2)
 - [Testing](#testing)
@@ -153,6 +161,15 @@ Static files always take priority over proxy rules. Proxies are checked only whe
 ---
 
 ## CLI Options
+
+The package installs two equivalent commands — use whichever you prefer:
+
+```shell
+express-reverse-proxy [options]
+lerp [options]
+```
+
+`lerp` is a short alias for **L**opatnov **E**xpress **R**everse **P**roxy.
 
 | Option                    | Description                                                                                     |
 | ------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -462,6 +479,108 @@ Paths are resolved **relative to the config file**, not the current working dire
 
 > All site configs on the same port must either all have `ssl` or none — mixing is a startup error.
 
+### compression
+
+Enable gzip/deflate response compression. Reduces the size of HTML, CSS, JS, and JSON responses sent to the browser. Set to `true` for defaults, or pass an options object.
+
+```json
+{
+  "port": 8080,
+  "compression": true,
+  "folders": "www"
+}
+```
+
+With custom options (see [compression docs](https://github.com/expressjs/compression#options)):
+
+```json
+{
+  "compression": { "level": 6, "threshold": 1024 }
+}
+```
+
+> Compression is applied per-site. Assets that are already compressed (images, fonts, video) are not affected — the browser signals it accepts compressed responses via the `Accept-Encoding` header.
+
+### helmet
+
+Set security-related HTTP response headers. Protects against common web vulnerabilities by configuring headers such as `Content-Security-Policy`, `X-Frame-Options`, `Strict-Transport-Security`, and others.
+
+```json
+{
+  "port": 8080,
+  "helmet": true,
+  "folders": "www"
+}
+```
+
+Disable a specific header (see [helmet docs](https://helmetjs.github.io/) for all options):
+
+```json
+{
+  "helmet": { "contentSecurityPolicy": false }
+}
+```
+
+> When `helmet: true` is set, the default helmet configuration is applied. This may block inline scripts and cross-origin resources. Adjust `contentSecurityPolicy` or other options as needed for your project.
+
+### cors
+
+Enable CORS (Cross-Origin Resource Sharing) headers and handle preflight `OPTIONS` requests automatically. Useful when your front-end on one origin calls an API on a different origin.
+
+```json
+{
+  "port": 8080,
+  "cors": true,
+  "proxy": { "/api": "http://localhost:4000" }
+}
+```
+
+Restrict to a specific origin (see [cors docs](https://github.com/expressjs/cors#configuration-options)):
+
+```json
+{
+  "cors": { "origin": "https://app.example.com" }
+}
+```
+
+> The `cors` middleware handles `OPTIONS` preflight requests that the `headers` option cannot respond to. Use `cors` when you need to allow requests from JavaScript on a different domain — for example a React app calling this proxy's API routes.
+
+### favicon
+
+Serve a favicon file efficiently. The file is read into memory at startup and served from there on every `/favicon.ico` request — before static folder scanning or proxy rules run.
+
+```json
+{
+  "port": 8080,
+  "favicon": "./public/favicon.ico",
+  "folders": "www"
+}
+```
+
+The path is resolved **relative to the config file**, consistent with the `ssl` option. Absolute paths are also accepted.
+
+> If your favicon already lives inside a directory listed in `folders`, this option is not needed — `express.static` will serve it automatically.
+
+### responseTime
+
+Add an `X-Response-Time` header to every response, recording how long the server took to handle the request. Useful for performance monitoring and debugging.
+
+```json
+{
+  "port": 8080,
+  "responseTime": true,
+  "folders": "www"
+}
+```
+
+With custom precision (see [response-time docs](https://github.com/expressjs/response-time#options)):
+
+```json
+{
+  "responseTime": { "digits": 0, "suffix": false }
+}
+```
+
 ---
 
 ## Configuration Recipes
@@ -526,6 +645,26 @@ Start and open in browser (accept the self-signed cert warning):
 ```shell
 node server.js --config server-config.json
 # [listen] https://localhost:8443
+```
+
+---
+
+### Production hardening (helmet + cors + compression)
+
+Enable security headers, CORS, and response compression in one config:
+
+```json
+{
+  "port": 8080,
+  "compression": true,
+  "helmet": true,
+  "cors": { "origin": "https://app.example.com" },
+  "responseTime": true,
+  "folders": "www",
+  "proxy": {
+    "/api": "http://localhost:4000"
+  }
+}
 ```
 
 ---
@@ -807,6 +946,11 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [Express](https://expressjs.com/) — HTTP server framework
 - [express-http-proxy](https://github.com/villadora/express-http-proxy) — reverse proxy middleware
 - [Morgan](https://github.com/expressjs/morgan) — HTTP request logger
+- [compression](https://github.com/expressjs/compression) — gzip/deflate response compression
+- [helmet](https://helmetjs.github.io/) — security HTTP headers
+- [cors](https://github.com/expressjs/cors) — CORS headers and preflight handling
+- [serve-favicon](https://github.com/expressjs/serve-favicon) — efficient favicon serving
+- [response-time](https://github.com/expressjs/response-time) — X-Response-Time header
 - [PM2](https://pm2.keymetrics.io/) — production process manager with clustering
 - [Biome](https://biomejs.dev/) — fast linter and formatter (Rust-based)
 - [Cypress](https://www.cypress.io/) — E2E testing framework
