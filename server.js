@@ -1,9 +1,14 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
-const express = require('express');
-const morgan = require('morgan');
-const proxy = require('express-http-proxy');
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+import proxy from 'express-http-proxy';
+import morgan from 'morgan';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const possibleServerArgs = [
   {
@@ -13,15 +18,34 @@ const possibleServerArgs = [
   {
     name: '--config',
     subArgs: ['file name'],
-    description: 'sets server configuration file. Default value of file name is "server-config.json"',
+    description:
+      'sets server configuration file. Default value of file name is "server-config.json"',
     samples: ['--config ./server-config.json', '--config ./configs/express-reverse-proxy.json'],
   },
-  // {
-  //   name: '--cluster',
-  //   subArgs: ['command: start | stop'],
-  //   description: 'starts or stops server cluster. By default server starts without cluster',
-  //   samples: ['--cluster start', '--cluster stop'],
-  // },
+  {
+    name: '--cluster',
+    description: 'manage the PM2 cluster. Action defaults to "start" when omitted',
+    samples: [
+      '--cluster',
+      '--cluster start',
+      '--cluster stop',
+      '--cluster restart',
+      '--cluster status',
+      '--cluster logs',
+      '--cluster monitor',
+      '--cluster start --config ./server-config.json',
+    ],
+  },
+  {
+    name: '--cluster-config',
+    subArgs: ['file'],
+    description:
+      'path to a custom PM2 ecosystem config file (default: ecosystem.config.cjs next to server.js)',
+    samples: [
+      '--cluster start --cluster-config ./my-ecosystem.config.cjs',
+      '--cluster restart --cluster-config /etc/myapp/ecosystem.config.cjs',
+    ],
+  },
 ];
 
 function exitError(msg, code = -1) {
@@ -35,21 +59,19 @@ function parseArguments(args) {
   return args.reduce((res, arg) => {
     const argIndex = process.argv.indexOf(arg.name);
     if (argIndex > -1) {
-      const changedResult = { ...res };
-      changedResult[arg.name] = {
-        args: [],
-      };
+      res[arg.name] = { args: [] };
       if (arg.subArgs) {
         arg.subArgs.forEach((subArg, index) => {
           const subArgIndex = argIndex + index + 1;
-          if (process.argv.length <= subArgIndex
-            || argsNames.indexOf(process.argv[subArgIndex]) > -1) {
+          if (
+            process.argv.length <= subArgIndex ||
+            argsNames.indexOf(process.argv[subArgIndex]) > -1
+          ) {
             exitError(`Invalid argument ${arg.name}. Missing <${subArg}>.`, 16);
           }
-          changedResult[arg.name].args.push(process.argv[subArgIndex]);
+          res[arg.name].args.push(process.argv[subArgIndex]);
         });
       }
-      return changedResult;
     }
     return res;
   }, {});
@@ -64,7 +86,9 @@ function help(app, args) {
   args.forEach((arg) => {
     const tabIndentLength = 3;
     const tabIndent = Array(tabIndentLength).fill('\t').join('');
-    const argTabIndent = Array(tabIndentLength - Math.trunc(arg.name.length / 4)).fill('\t').join('');
+    const argTabIndent = Array(tabIndentLength - Math.trunc(arg.name.length / 4))
+      .fill('\t')
+      .join('');
     console.log(`\t\x1b[1m${arg.name}\x1b[0m${argTabIndent}${arg.description}`);
     if (arg.subArgs) {
       const subArgs = arg.subArgs.map((subArg) => `<${subArg}>`).join(' ');
@@ -85,6 +109,41 @@ if (serverArgs['--help']) {
   process.exit();
 }
 
+if (serverArgs['--cluster']) {
+  const clusterArgIndex = process.argv.indexOf('--cluster');
+  const nextArg = process.argv[clusterArgIndex + 1];
+  const validActions = ['start', 'stop', 'restart', 'status', 'logs', 'monitor'];
+  const isAction = nextArg && !nextArg.startsWith('-') && validActions.includes(nextArg);
+
+  if (nextArg && !nextArg.startsWith('-') && !isAction) {
+    exitError(
+      `Unknown --cluster action: "${nextArg}". Valid actions: ${validActions.join(', ')}.`,
+      16,
+    );
+  }
+
+  const action = isAction ? nextArg : 'start';
+  const ecosystemConfig = serverArgs['--cluster-config']
+    ? path.resolve(process.cwd(), serverArgs['--cluster-config'].args[0])
+    : path.join(__dirname, 'ecosystem.config.cjs');
+  const cwd = process.cwd();
+  const configPassthrough = serverArgs['--config']
+    ? ['--', '--config', serverArgs['--config'].args[0]]
+    : [];
+
+  const pm2Commands = {
+    start: ['start', ecosystemConfig, '--no-daemon', `--cwd=${cwd}`, ...configPassthrough],
+    stop: ['stop', 'express-reverse-proxy'],
+    restart: ['restart', 'express-reverse-proxy', `--cwd=${cwd}`, ...configPassthrough],
+    status: ['status'],
+    logs: ['logs', 'express-reverse-proxy', '--lines', '200'],
+    monitor: ['monit'],
+  };
+
+  const result = spawnSync('pm2', pm2Commands[action], { stdio: 'inherit', shell: true });
+  process.exit(result.status ?? 0);
+}
+
 let configFile = './server-config.json';
 if (serverArgs['--config']) {
   [configFile] = serverArgs['--config'].args;
@@ -92,108 +151,123 @@ if (serverArgs['--config']) {
     configFile = path.join(configFile, './server-config.json');
   }
 }
+
+const DEFAULT_CONFIG = { port: 8000, folders: '.' };
+
+let rawConfig;
 if (!fs.existsSync(configFile)) {
-  exitError(`Configuration file not found. Please add "${configFile}" file or provide a path through "--config <file name>" option`, 404);
-}
-console.log(`[config] ${configFile}`);
-
-const config = JSON.parse(fs.readFileSync(configFile));
-const app = express();
-const host = 'localhost';
-const port = (config && config.port) || process.env.PORT || 8080;
-
-app.use(morgan('combined'));
-
-if (config.headers) {
-  app.use((req, res, next) => {
-    const headers = Object.keys(config.headers);
-    headers.forEach((header) => res.setHeader(header, config.headers[header]));
-    next();
-  });
+  if (serverArgs['--config']) {
+    exitError(`Configuration file not found: "${configFile}"`, 404);
+  }
+  console.warn(
+    `\x1b[33m[config] "${configFile}" not found — using defaults (port: 8000, folders: ".")\x1b[0m`,
+  );
+  rawConfig = DEFAULT_CONFIG;
+} else {
+  console.log(`[config] ${configFile}`);
+  try {
+    rawConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+  } catch (err) {
+    exitError(`Failed to parse "${configFile}": ${err.message}`, 1);
+  }
 }
 
-function addStaticFolderByName(urlPath, folder) {
+const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
+
+// Validate: same host on same port is an error; same host on different ports is OK
+const seen = new Set();
+configs.forEach((c) => {
+  const p = parseInt(c.port || process.env.PORT || 8000, 10);
+  if (p < 1 || p > 65535) exitError(`Invalid port: ${p}`, 1);
+  const key = `${p}:${c.host || '*'}`;
+  if (seen.has(key)) {
+    exitError(`Duplicate host "${c.host || '*'}" on port ${p}`, 1);
+  }
+  seen.add(key);
+});
+
+// Group configs by port
+const configsByPort = new Map();
+configs.forEach((c) => {
+  const p = parseInt(c.port || process.env.PORT || 8000, 10);
+  if (!configsByPort.has(p)) configsByPort.set(p, []);
+  configsByPort.get(p).push(c);
+});
+
+function addStaticFolderByName(router, port, urlPath, folder) {
   let folderPath = folder;
   if (!path.isAbsolute(folder)) {
     folderPath = path.join(process.cwd(), folder);
   }
   if (urlPath) {
-    app.use(urlPath, express.static(folderPath));
+    router.use(urlPath, express.static(folderPath));
   } else {
-    app.use(express.static(folderPath));
+    router.use(express.static(folderPath));
   }
-  console.log(`[folder] http://localhost:${port}/${urlPath || ''} <===> ${folderPath}`);
+  console.log(`[folder] http://localhost:${port}${urlPath || ''} <===> ${folderPath}`);
 }
 
-function addMappedStaticFolders(rootPath, folders) {
+function addMappedStaticFolders(router, port, rootPath, folders) {
   const pathStart = rootPath || '';
   const keys = Object.getOwnPropertyNames(folders);
   keys.forEach((key) => {
     const folderPath = pathStart + key;
-    addStaticFolder(folderPath, folders[key]);
+    addStaticFolder(router, port, folderPath, folders[key]);
   });
 }
 
-function addStaticFolders(rootPath, folders) {
+function addStaticFolders(router, port, rootPath, folders) {
   folders.forEach((folder) => {
-    addStaticFolder(rootPath, folder);
+    addStaticFolder(router, port, rootPath, folder);
   });
 }
 
-function addStaticFolder(rootPath, folder) {
-  if (typeof (folder) === 'string') {
-    addStaticFolderByName(rootPath, folder);
+function addStaticFolder(router, port, rootPath, folder) {
+  if (typeof folder === 'string') {
+    addStaticFolderByName(router, port, rootPath, folder);
   } else if (Array.isArray(folder)) {
-    addStaticFolders(rootPath, folder);
+    addStaticFolders(router, port, rootPath, folder);
   } else if (folder instanceof Object) {
-    addMappedStaticFolders(rootPath, folder);
+    addMappedStaticFolders(router, port, rootPath, folder);
   }
 }
 
-if (config && config.folders) {
-  addStaticFolder(null, config.folders);
-}
-
-function addRemoteProxy(urlPath, proxyServer) {
+function addRemoteProxy(router, port, urlPath, proxyServer) {
   if (urlPath) {
-    app.use(urlPath, proxy(proxyServer));
+    router.use(urlPath, proxy(proxyServer));
   } else {
-    app.use(proxy(proxyServer));
+    router.use(proxy(proxyServer));
   }
-  console.log(`[proxy] http://localhost:${port}/${urlPath || ''} <===> ${proxyServer}`);
+  console.log(`[proxy] http://localhost:${port}${urlPath || ''} <===> ${proxyServer}`);
 }
 
-function addMappedProxy(localRootPath, pathPairs) {
+function addMappedProxy(router, port, localRootPath, pathPairs) {
   const localPaths = Object.getOwnPropertyNames(pathPairs);
   localPaths.forEach((localPath) => {
     const localFullPath = (localRootPath || '') + localPath;
-    addRemoteProxy(localFullPath, pathPairs[localPath]);
+    addRemoteProxy(router, port, localFullPath, pathPairs[localPath]);
   });
 }
 
-function addProxies(localRootPath, proxies) {
+function addProxies(router, port, localRootPath, proxies) {
   proxies.forEach((proxyUrl) => {
-    addRemoteProxy(localRootPath, proxyUrl);
+    addRemoteProxy(router, port, localRootPath, proxyUrl);
   });
 }
 
-function addProxy(localRootPath, remoteProxy) {
-  if (typeof (remoteProxy) === 'string') {
-    addRemoteProxy(localRootPath, remoteProxy);
+function addProxy(router, port, localRootPath, remoteProxy) {
+  if (typeof remoteProxy === 'string') {
+    addRemoteProxy(router, port, localRootPath, remoteProxy);
   } else if (Array.isArray(remoteProxy)) {
-    addProxies(localRootPath, remoteProxy);
+    addProxies(router, port, localRootPath, remoteProxy);
   } else if (remoteProxy instanceof Object) {
-    addMappedProxy(localRootPath, remoteProxy);
+    addMappedProxy(router, port, localRootPath, remoteProxy);
   }
-}
-
-if (config && config.proxy) {
-  addProxy(null, config.proxy);
 }
 
 function unhandled(res, acceptConfig) {
   const headers = (acceptConfig.headers && Object.keys(acceptConfig.headers)) || [];
-  headers.forEach((header) => res.setHeader(header, acceptConfig.headers[header]));
+  for (const header of headers) res.setHeader(header, acceptConfig.headers[header]);
 
   let statusCode = Number.parseInt(acceptConfig.status, 10);
   if (!Number.isFinite(statusCode)) {
@@ -212,35 +286,99 @@ function unhandled(res, acceptConfig) {
   }
 }
 
-if (config && config.unhandled) {
-  app.use((req, res, next) => {
-    Object.keys(config.unhandled).forEach((acceptName) => {
-      if (!acceptName || acceptName === '*' || acceptName === '**') {
-        unhandled(res, config.unhandled[acceptName]);
-      } else if (req.accepts(acceptName)) {
-        unhandled(res, config.unhandled[acceptName]);
+const servers = [];
+
+configsByPort.forEach((portConfigs, p) => {
+  const app = express();
+  app.use(morgan('combined'));
+
+  // Specific hosts first, catch-all last
+  const sorted = [
+    ...portConfigs.filter((c) => c.host && c.host !== '*'),
+    ...portConfigs.filter((c) => !c.host || c.host === '*'),
+  ];
+
+  sorted.forEach((siteConfig) => {
+    const siteHost = siteConfig.host || '*';
+    const router = express.Router();
+
+    console.log(`[host] ${siteHost} → :${p}`);
+
+    if (siteConfig.headers) {
+      router.use((_req, res, next) => {
+        for (const h of Object.keys(siteConfig.headers)) res.setHeader(h, siteConfig.headers[h]);
+        next();
+      });
+    }
+
+    if (siteConfig.folders) {
+      addStaticFolder(router, p, null, siteConfig.folders);
+    }
+
+    if (siteConfig.proxy) {
+      addProxy(router, p, null, siteConfig.proxy);
+    }
+
+    if (siteConfig.unhandled) {
+      router.use((req, res, _next) => {
+        Object.keys(siteConfig.unhandled).forEach((acceptName) => {
+          if (!acceptName || acceptName === '*' || acceptName === '**') {
+            unhandled(res, siteConfig.unhandled[acceptName]);
+          } else if (req.accepts(acceptName)) {
+            unhandled(res, siteConfig.unhandled[acceptName]);
+          }
+        });
+      });
+    }
+
+    if (siteHost === '*') {
+      app.use(router);
+    } else {
+      app.use((req, res, next) => {
+        if (req.hostname === siteHost) router(req, res, next);
+        else next();
+      });
+    }
+  });
+
+  const server = app.listen(p, () => {
+    console.log(`[listen] http://localhost:${p}`);
+    if (process.send) process.send('ready');
+  });
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      exitError(`Port ${p} is already in use`, 1);
+    }
+    throw err;
+  });
+  servers.push(server);
+});
+
+function shutdown() {
+  console.log('Closing all connections...');
+  const timer = setTimeout(() => {
+    console.error('Forced exit after timeout');
+    process.exit(1);
+  }, 10_000).unref();
+  let remaining = servers.length;
+  if (remaining === 0) {
+    clearTimeout(timer);
+    process.exit(0);
+  }
+  servers.forEach((s) => {
+    s.close(() => {
+      remaining -= 1;
+      if (remaining === 0) {
+        clearTimeout(timer);
+        console.log('Finished closing connections');
+        process.exit(0);
       }
     });
   });
 }
 
-const server = app.listen(port, () => {
-  console.log(`[listen] http://${host}:${port}`);
-  if (process.send) {
-    process.send('ready');
-  }
-});
-
-function shutdown() {
-  console.log('Closing all connections...');
-  server.close(() => {
-    console.log('Finished closing connections');
-    process.exit(0);
-  });
-}
-
 process.on('message', (msg) => {
-  if (msg.toLowerCase() === 'shutdown') {
+  if (typeof msg === 'string' && msg.toLowerCase() === 'shutdown') {
     shutdown();
   }
 });

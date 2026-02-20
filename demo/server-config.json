@@ -1,0 +1,32 @@
+[
+  {
+    "port": 8080,
+    "folders": "demo/client-a",
+    "proxy": {
+      "/api": "http://localhost:4001"
+    },
+    "headers": {
+      "X-Powered-By": "express-reverse-proxy",
+      "X-Client": "A"
+    },
+    "unhandled": {
+      "html": { "status": 307, "headers": { "Location": "/" } },
+      "json": { "status": 404, "send": { "error": "Not Found" } }
+    }
+  },
+  {
+    "port": 8081,
+    "folders": "demo/client-b",
+    "proxy": {
+      "/api": "http://localhost:4002"
+    },
+    "headers": {
+      "X-Powered-By": "express-reverse-proxy",
+      "X-Client": "B"
+    },
+    "unhandled": {
+      "html": { "status": 307, "headers": { "Location": "/" } },
+      "json": { "status": 404, "send": { "error": "Not Found" } }
+    }
+  }
+]

@@ -1,52 +1,77 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "1.3.0",
-  "description": "A back-end (Node.js) development tool to serve front-end projects with back-end reverse proxy for API. Configure a tool and serve your front-end projects",
+  "version": "2.0.0",
+  "description": "Node.js CLI tool to serve static front-end files with a reverse proxy for back-end APIs",
+  "type": "module",
   "author": "lopatnov",
   "main": "server.js",
+  "exports": {
+    ".": "./server.js"
+  },
   "bin": {
     "express-reverse-proxy": "./server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [
     "reverse",
     "proxy",
     "javascript",
-    "express"
+    "express",
+    "node",
+    "cli",
+    "static-server",
+    "spa",
+    "development"
   ],
   "scripts": {
-    "start": "node ./server.js",
-    "pm2-start": "pm2 start server.js --name express-reverse-proxy --instances 8 --wait-ready --time --listen-timeout 30000 --no-daemon --watch",
-    "pm2-stop": "pm2 stop express-reverse-proxy",
+    "start": "node ./server.js --config demo/server-config.json",
+    "start:server-a": "node ./demo/server-a.js",
+    "start:server-b": "node ./demo/server-b.js",
+    "demo": "node ./scripts/demo.js",
+    "test": "node ./scripts/test.js",
+    "cypress:run": "cypress run",
+    "cypress:open": "cypress open",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "pm2-start": "pm2 start ecosystem.config.cjs --no-daemon",
+    "pm2-restart": "pm2 restart ecosystem.config.cjs",
+    "pm2-stop": "pm2 stop ecosystem.config.cjs",
     "pm2-status": "pm2 status",
     "pm2-logs": "pm2 logs --lines 200",
-    "pm2-monitor": "pm2 monit"
+    "pm2-monitor": "pm2 monit",
+    "demo:pm2-start": "pm2 start demo/ecosystem.config.cjs --no-daemon",
+    "demo:pm2-restart": "pm2 restart demo/ecosystem.config.cjs",
+    "demo:pm2-stop": "pm2 stop demo/ecosystem.config.cjs"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lopatnov/static-server-express.git"
+    "url": "git+https://github.com/lopatnov/express-reverse-proxy.git"
   },
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/lopatnov/static-server-express/issues"
+    "url": "https://github.com/lopatnov/express-reverse-proxy/issues"
   },
   "homepage": "https://lopatnov.github.io/express-reverse-proxy/",
   "files": [
-    "**/*"
+    "server.js",
+    "ecosystem.config.cjs",
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
-    "express": "^4.18.1",
-    "express-http-proxy": "^1.6.3",
-    "morgan": "^1.10.0",
-    "path": "^0.12.7",
-    "pm2": "^5.2.0"
+    "express": "^5.2.1",
+    "express-http-proxy": "^2.1.2",
+    "morgan": "^1.10.1",
+    "pm2": "^6.0.14"
   },
   "devDependencies": {
-    "eslint": "^8.23.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.26.0"
+    "@biomejs/biome": "^2.4.2",
+    "cypress": "^15.10.0"
   }
 }

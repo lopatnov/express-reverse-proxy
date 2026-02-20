@@ -53,6 +53,9 @@ typings/
 # Optional eslint cache
 .eslintcache
 
+# Biome cache
+.biome-cache/
+
 # Microbundle cache
 .rpt2_cache/
 .rts2_cache_cjs/
@@ -102,3 +105,12 @@ dist
 
 # TernJS port file
 .tern-port
+# Cypress test artifacts
+cypress/videos/
+cypress/screenshots/
+
+# Environment variable files
+.env.*
+!.env.test
+
+/.claude

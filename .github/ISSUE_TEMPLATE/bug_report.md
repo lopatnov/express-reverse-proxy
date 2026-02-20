@@ -12,27 +12,30 @@ A clear and concise description of what the bug is.
 
 **To Reproduce**
 Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+1. Run `express-reverse-proxy --config ...`
+2. Make a request to `...`
+3. See error
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**server-config.json**
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+```json
+{
+  "port": 8080,
+  "folders": "...",
+  "proxy": "..."
+}
+```
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+**Environment**
+- Node.js version: [e.g. 22.x]
+- OS: [e.g. Ubuntu 24.04, Windows 11]
+- Package version: [e.g. 1.3.0]
+
+**Screenshots or logs**
+If applicable, add terminal output or screenshots to help explain the problem.
 
 **Additional context**
 Add any other context about the problem here.

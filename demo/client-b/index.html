@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Demo: static files served on port 8081, API proxied to the Products service on port 4002." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⇄</text></svg>" />
+  <title>Client B — Products API · express-reverse-proxy</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">express-reverse-proxy</span>
+      <span class="badge">Client B · :8081</span>
+      <a class="gh-link" href="https://github.com/lopatnov/express-reverse-proxy" target="_blank" rel="noopener">
+        View on GitHub ↗
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Products API Demo</h1>
+      <p class="subtitle">
+        Static files served on <code>:8081</code> · API proxied to
+        <code>localhost:4002</code> (Products service)
+      </p>
+    </section>
+
+    <section class="cards">
+      <div class="card">
+        <div class="card-header">
+          <span class="method get">GET</span>
+          <code>/api/products</code>
+        </div>
+        <p class="card-desc">Fetch all products from the Products service.</p>
+        <button type="button" class="btn" data-path="/api/products">Send request</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="method get">GET</span>
+          <code>/api/products/1</code>
+        </div>
+        <p class="card-desc">Fetch a single product by ID.</p>
+        <button type="button" class="btn" data-path="/api/products/1">Send request</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="method get">GET</span>
+          <code>/api/products/99</code>
+        </div>
+        <p class="card-desc">Fetch a non-existent product — expect 404.</p>
+        <button type="button" class="btn" data-path="/api/products/99">Send request</button>
+      </div>
+    </section>
+
+    <section class="response-section">
+      <div class="response-header">
+        <span>Response</span>
+        <span id="status-badge" class="status-badge"></span>
+        <button type="button" class="btn-clear" id="clear-btn" hidden>Clear</button>
+      </div>
+      <pre id="response-output"><span class="placeholder">← Click a button to send an API request</span></pre>
+    </section>
+
+    <section class="info">
+      <h2>How it works</h2>
+      <div class="flow">
+        <div class="flow-step">Browser</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step highlight">express-reverse-proxy<br/><small>:8081</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Products API<br/><small>:4002</small></div>
+      </div>
+      <p>
+        Requests to <code>/api/*</code> are transparently forwarded to the backend.
+        Static HTML/CSS/JS is served directly.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Apache-2.0 · <a href="https://github.com/lopatnov" target="_blank" rel="noopener">lopatnov</a></span>
+    <span>Client A demo → <a href="http://localhost:8080">localhost:8080</a></span>
+  </footer>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
