@@ -37,10 +37,14 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "pm2-start": "pm2 start ecosystem.config.cjs --no-daemon",
-    "pm2-stop": "pm2 stop express-reverse-proxy",
+    "pm2-restart": "pm2 restart ecosystem.config.cjs",
+    "pm2-stop": "pm2 stop ecosystem.config.cjs",
     "pm2-status": "pm2 status",
     "pm2-logs": "pm2 logs --lines 200",
-    "pm2-monitor": "pm2 monit"
+    "pm2-monitor": "pm2 monit",
+    "demo:pm2-start": "pm2 start demo/ecosystem.config.cjs --no-daemon",
+    "demo:pm2-restart": "pm2 restart demo/ecosystem.config.cjs",
+    "demo:pm2-stop": "pm2 stop demo/ecosystem.config.cjs"
   },
   "repository": {
     "type": "git",

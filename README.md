@@ -502,13 +502,14 @@ express-reverse-proxy --cluster start --cluster-config ./my-ecosystem.config.cjs
 
 Run via npm scripts:
 
-| Script                | Description                                              |
-| --------------------- | -------------------------------------------------------- |
-| `npm run pm2-start`   | Start cluster (max CPU cores) via `ecosystem.config.cjs` |
-| `npm run pm2-stop`    | Stop all instances                                       |
-| `npm run pm2-status`  | Show process status                                      |
-| `npm run pm2-logs`    | Show last 200 log lines                                  |
-| `npm run pm2-monitor` | Open real-time monitor                                   |
+| Script                  | Description                                                        |
+| ----------------------- | ------------------------------------------------------------------ |
+| `npm run pm2-start`     | Start cluster (max CPU cores) with `demo/server-config.json`       |
+| `npm run pm2-restart`   | Restart all instances                                              |
+| `npm run pm2-stop`      | Stop all instances                                                 |
+| `npm run pm2-status`    | Show process status                                                |
+| `npm run pm2-logs`      | Show last 200 log lines                                            |
+| `npm run pm2-monitor`   | Open real-time monitor                                             |
 
 Or use the CLI directly:
 
@@ -602,6 +603,24 @@ To use your own config, either place `server-config.json` in the working directo
 ```shell
 express-reverse-proxy --config ./configs/dev.json
 ```
+
+**PM2 shows `Error: spawn wmic ENOENT` on Windows 11**
+
+```
+PM2 error: Error caught while calling pidusage
+PM2 error: Error: Error: spawn wmic ENOENT
+```
+
+`wmic` was removed in newer Windows 11 builds. PM2 uses it internally to collect CPU/memory metrics, but this does not affect the server — all instances start and serve requests normally. The metrics columns in `pm2 status` will show `0%` / `0b`.
+
+To suppress the errors, `ecosystem.config.cjs` already includes `pmx: false` which disables the metrics module. If the errors still appear after restarting, delete the PM2 daemon state and start fresh:
+
+```shell
+pm2 kill
+npm run pm2-start
+```
+
+---
 
 **Multiple configs with the same host + port**
 
