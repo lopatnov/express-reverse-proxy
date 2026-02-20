@@ -230,6 +230,43 @@ Controls HTTP request logging (Morgan). Enabled by default. Set to `false` to si
 }
 ```
 
+### hotReload
+
+Watches the `folders` directories for file changes and automatically reloads connected browser tabs. Uses Server-Sent Events (SSE). Intended for local development only.
+
+```json
+{
+  "port": 8080,
+  "hotReload": true,
+  "folders": "www"
+}
+```
+
+The server exposes two endpoints when hot reload is enabled:
+
+| Endpoint | Description |
+| --------------------------------- | ------------------------------------------ |
+| `GET /__hot-reload__` | SSE stream — browsers subscribe here |
+| `GET /__hot-reload__/client.js` | Ready-to-use client script |
+
+#### Connecting the client
+
+**Option A — plain HTML project**: add a script tag to your page. The file is served directly by the dev server, no installation needed:
+
+```html
+<script src="/__hot-reload__/client.js"></script>
+```
+
+**Option B — bundled project** (Vite, webpack, etc.): import the client module. The bundler resolves it through the package `exports` field:
+
+```js
+import '@lopatnov/express-reverse-proxy/hot-reload-client';
+```
+
+Both options connect to `/__hot-reload__` and call `location.reload()` when a file change is detected. The connection is re-established automatically after 3 seconds if the server restarts.
+
+> **PM2 note:** hot reload works best with a single process (`node server.js`). If using PM2, set `instances: 1` in your ecosystem config — each worker maintains its own file watcher and SSE client list independently.
+
 ### headers
 
 Add headers to every response — useful for CORS in development.

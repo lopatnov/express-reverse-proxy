@@ -204,6 +204,13 @@ for (const [p, group] of configsByPort) {
   }
 }
 
+function collectFolderPaths(folders) {
+  if (typeof folders === 'string') return [folders];
+  if (Array.isArray(folders)) return folders.flatMap(collectFolderPaths);
+  if (folders instanceof Object) return Object.values(folders).flatMap(collectFolderPaths);
+  return [];
+}
+
 function addStaticFolderByName(router, port, urlPath, folder) {
   let folderPath = folder;
   if (!path.isAbsolute(folder)) {
@@ -303,6 +310,43 @@ configsByPort.forEach((portConfigs, p) => {
   const loggingEnabled = portConfigs.every((c) => c.logging !== false);
   if (loggingEnabled) {
     app.use(morgan('combined'));
+  }
+
+  // Hot reload via SSE
+  const hotReloadEnabled = portConfigs.some((c) => c.hotReload === true);
+  if (hotReloadEnabled) {
+    const sseClients = new Set();
+    let reloadTimer = null;
+
+    app.get('/__hot-reload__', (req, res) => {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+      sseClients.add(res);
+      req.on('close', () => sseClients.delete(res));
+    });
+
+    app.get('/__hot-reload__/client.js', (_req, res) => {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      res.sendFile(path.join(__dirname, 'hot-reload-client.js'));
+    });
+
+    const watchPaths = [
+      ...new Set(portConfigs.flatMap((c) => collectFolderPaths(c.folders || []))),
+    ];
+    for (const folder of watchPaths) {
+      const absPath = path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder);
+      if (fs.existsSync(absPath)) {
+        fs.watch(absPath, { recursive: true }, () => {
+          clearTimeout(reloadTimer);
+          reloadTimer = setTimeout(() => {
+            for (const client of sseClients) client.write('data: reload\n\n');
+          }, 100);
+        });
+      }
+    }
+    console.log(`[hot-reload] watching ${watchPaths.length} folder(s) on port ${p}`);
   }
 
   // Specific hosts first, catch-all last

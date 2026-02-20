@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.0.0] — 2026-02-20
+
+### New features
+
+- **HTTPS support**: add an `ssl` object to any site config (`key`, `cert`, optional `ca`) to serve the port over TLS. Paths are resolved relative to the config file. Mixing SSL and non-SSL configs on the same port is a startup error.
+- **`logging` option**: set `"logging": false` in a site config to disable Morgan HTTP request logging for that port. Logging is enabled by default.
+- **Hot reload**: set `"hotReload": true` to watch `folders` for file changes and push a reload signal to browsers via SSE. Add `<script src="/__hot-reload__/client.js"></script>` or `import '@lopatnov/express-reverse-proxy/hot-reload-client'` to your HTML.
+
+### Improvements
+
+- E2E tests (Cypress) now run in CI (GitHub Actions) as a separate job after linting.
+
+---
+
 ## [2.0.0] — 2026-02-20
 
 ### Breaking changes
