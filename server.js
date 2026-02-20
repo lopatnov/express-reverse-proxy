@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import https from 'node:https';
 import path from 'node:path';
@@ -411,6 +411,92 @@ configsByPort.forEach((portConfigs, p) => {
 
     if (siteConfig.folders) {
       addStaticFolder(router, p, null, siteConfig.folders);
+    }
+
+    if (siteConfig.cgi) {
+      const cgiRaw = siteConfig.cgi;
+      const cgiConfig = typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw;
+      const cgiUrlPath = cgiConfig.path || '/cgi-bin';
+      const cgiDirResolved = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
+      const cgiExts = new Set(cgiConfig.extensions || ['.cgi', '.pl', '.py', '.sh']);
+      const interps = cgiConfig.interpreters || {};
+
+      router.use(cgiUrlPath, (req, res, next) => {
+        const scriptPath = path.resolve(path.join(cgiDirResolved, req.path));
+        if (!scriptPath.startsWith(cgiDirResolved + path.sep)) return next();
+
+        const ext = path.extname(scriptPath);
+        if (!cgiExts.has(ext) || !fs.existsSync(scriptPath)) return next();
+
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const env = {
+          ...process.env,
+          GATEWAY_INTERFACE: 'CGI/1.1',
+          SERVER_PROTOCOL: 'HTTP/1.1',
+          SERVER_SOFTWARE: 'express-reverse-proxy',
+          REQUEST_METHOD: req.method.toUpperCase(),
+          SCRIPT_FILENAME: scriptPath,
+          SCRIPT_NAME: cgiUrlPath + req.path,
+          PATH_INFO: '',
+          QUERY_STRING: url.search ? url.search.slice(1) : '',
+          REMOTE_ADDR: req.ip || '127.0.0.1',
+          CONTENT_TYPE: req.headers['content-type'] || '',
+          CONTENT_LENGTH: req.headers['content-length'] || '0',
+          SERVER_NAME: req.hostname || 'localhost',
+          SERVER_PORT: String(p),
+        };
+        for (const [k, v] of Object.entries(req.headers)) {
+          env[`HTTP_${k.toUpperCase().replace(/-/g, '_')}`] = Array.isArray(v) ? v.join(', ') : v;
+        }
+
+        const interpreter = interps[ext];
+        const command = interpreter || scriptPath;
+        const args = interpreter ? [scriptPath] : [];
+        const child = spawn(command, args, { env, cwd: path.dirname(scriptPath) });
+
+        child.stdin.on('error', (_err) => {});
+        req.pipe(child.stdin);
+
+        let headersParsed = false;
+        let rawBuf = '';
+        child.stdout.on('data', (chunk) => {
+          if (!headersParsed) {
+            rawBuf += chunk.toString('binary');
+            const m = /\r?\n\r?\n/.exec(rawBuf);
+            if (m) {
+              const rawHeaders = rawBuf.substring(0, m.index);
+              const bodyStart = Buffer.from(rawBuf.substring(m.index + m[0].length), 'binary');
+              headersParsed = true;
+              let statusCode = 200;
+              for (const line of rawHeaders.split(/\r?\n/)) {
+                const colon = line.indexOf(':');
+                if (colon === -1) continue;
+                const name = line.substring(0, colon).trim();
+                const value = line.substring(colon + 1).trim();
+                if (name.toLowerCase() === 'status') {
+                  statusCode = Number.parseInt(value, 10) || 200;
+                } else {
+                  res.setHeader(name, value);
+                }
+              }
+              res.status(statusCode);
+              if (bodyStart.length) res.write(bodyStart);
+            }
+          } else {
+            res.write(chunk);
+          }
+        });
+        child.stdout.on('end', () => {
+          if (!headersParsed) res.status(500).send('CGI script produced no output');
+          else res.end();
+        });
+        child.stderr.on('data', (data) => console.error(`[cgi] ${scriptPath}: ${data}`));
+        child.on('error', (err) => {
+          console.error(`[cgi] spawn error for ${scriptPath}: ${err.message}`);
+          if (!res.headersSent) res.status(500).send(`CGI error: ${err.message}`);
+        });
+        console.log(`[cgi] ${req.method} ${cgiUrlPath}${req.path} → ${scriptPath}`);
+      });
     }
 
     if (siteConfig.proxy) {

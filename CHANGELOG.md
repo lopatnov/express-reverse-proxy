@@ -6,6 +6,7 @@
 
 - **`rateLimit`**: set `"rateLimit": { "windowMs": 60000, "limit": 100 }` to limit requests per client per time window via `express-rate-limit`. Responds with `429` when exceeded.
 - **`basicAuth`**: set `"basicAuth": { "users": { "admin": "secret" } }` to protect a site with HTTP Basic Authentication via `express-basic-auth`.
+- **`cgi`**: execute server-side scripts (Python, Perl, shell, or any `.cgi`) via the CGI protocol. Set `"cgi": "./cgi-bin"` for a quick start, or use the full object form to configure the URL path, extensions, and per-extension interpreters. HTTP headers are mapped to `CGI/1.1` environment variables; the request body is piped to stdin and the script's stdout is streamed back as the response. No external dependency — uses Node.js `child_process.spawn`.
 
 ---
 

@@ -29,6 +29,7 @@
   - [responseTime](#responsetime)
   - [rateLimit](#ratelimit)
   - [basicAuth](#basicauth)
+  - [cgi](#cgi)
   - [headers](#headers)
   - [folders](#folders)
   - [proxy](#proxy)
@@ -150,6 +151,9 @@ Request
   │
   ├─▶  Static files checked (folders, in order)
   │       └─▶  File found → serve it
+  │
+  ├─▶  CGI scripts checked (cgi)
+  │       └─▶  Path + extension matches → execute script → stream response
   │
   ├─▶  Reverse proxy rules checked (proxy)
   │       └─▶  Path matches → forward to back-end → return response
@@ -630,6 +634,70 @@ See [express-basic-auth docs](https://github.com/LionC/express-basic-auth#option
 
 > Passwords are compared in plain text. Do not use Basic Auth over plain HTTP in production — always combine with `ssl` or put behind a TLS-terminating proxy.
 
+### cgi
+
+Execute server-side scripts using the CGI (Common Gateway Interface) protocol. When a request matches the configured URL prefix and file extension, the script is spawned as a child process — HTTP headers become environment variables, the request body is piped to stdin, and the script's stdout is streamed back as the HTTP response.
+
+```json
+{
+  "port": 8080,
+  "cgi": {
+    "path": "/cgi-bin",
+    "dir": "./cgi-bin",
+    "extensions": [".cgi", ".pl", ".py", ".sh"],
+    "interpreters": {
+      ".py": "python3",
+      ".sh": "sh",
+      ".pl": "perl"
+    }
+  }
+}
+```
+
+| Option         | Default                               | Description                                                          |
+| -------------- | ------------------------------------- | -------------------------------------------------------------------- |
+| `path`         | `"/cgi-bin"`                          | URL prefix that triggers CGI dispatch                                |
+| `dir`          | `"./cgi-bin"`                         | Local directory containing scripts (resolved relative to config file)|
+| `extensions`   | `[".cgi", ".pl", ".py", ".sh"]`       | File extensions treated as executable CGI scripts                    |
+| `interpreters` | `{}`                                  | Map of file extension → interpreter command                          |
+
+Shorthand — point directly to the script directory (all defaults apply):
+
+```json
+{
+  "cgi": "./cgi-bin"
+}
+```
+
+CGI environment variables set for every request:
+
+| Variable          | Value                                                    |
+| ----------------- | -------------------------------------------------------- |
+| `REQUEST_METHOD`  | HTTP method (`GET`, `POST`, …)                           |
+| `QUERY_STRING`    | URL query string (without `?`)                           |
+| `CONTENT_TYPE`    | `Content-Type` request header                            |
+| `CONTENT_LENGTH`  | `Content-Length` request header                          |
+| `SCRIPT_FILENAME` | Absolute path to the script file                         |
+| `SCRIPT_NAME`     | URL path to the script (e.g. `/cgi-bin/hello.py`)        |
+| `SERVER_NAME`     | Requested hostname                                       |
+| `SERVER_PORT`     | Server listen port                                       |
+| `REMOTE_ADDR`     | Client IP address                                        |
+| `HTTP_*`          | All request headers (e.g. `HTTP_ACCEPT`, `HTTP_HOST`)    |
+
+A minimal Python example (`cgi-bin/hello.py`):
+
+```python
+#!/usr/bin/env python3
+print("Content-Type: text/plain")
+print("Status: 200 OK")
+print()
+print("Hello from CGI!")
+```
+
+> **Unix/macOS note:** Scripts must be executable: `chmod +x cgi-bin/hello.py`. Alternatively, configure an `interpreters` entry for the extension — no executable bit required when an interpreter is specified.
+
+> **Windows note:** Scripts are not directly executable on Windows. You must configure `interpreters` for every extension you use; otherwise the request returns a `500` spawn error.
+
 ---
 
 ## Configuration Recipes
@@ -1002,6 +1070,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [response-time](https://github.com/expressjs/response-time) — X-Response-Time header
 - [express-rate-limit](https://express-rate-limit.mintlify.app/) — request rate limiting
 - [express-basic-auth](https://github.com/LionC/express-basic-auth) — HTTP Basic Authentication
+- CGI support — built on Node.js `child_process.spawn` (no external dependency)
 - [PM2](https://pm2.keymetrics.io/) — production process manager with clustering
 - [Biome](https://biomejs.dev/) — fast linter and formatter (Rust-based)
 - [Cypress](https://www.cypress.io/) — E2E testing framework
