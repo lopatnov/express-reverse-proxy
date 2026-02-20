@@ -385,6 +385,34 @@ To use multi-site mode, make the config file an **array** instead of an object. 
 >
 > Two entries with the same `host` **and** `port` cause a startup error. The same `host` on different ports is allowed.
 
+### ssl
+
+Enable HTTPS on a port by adding an `ssl` object to any site config for that port. All sites sharing the same port use the same certificate.
+
+| Field  | Type     | Description                                              |
+| ------ | -------- | -------------------------------------------------------- |
+| `key`  | `string` | Path to the private key file (PEM format)                |
+| `cert` | `string` | Path to the certificate file (PEM format)                |
+| `ca`   | `string` | *(optional)* Path to the CA bundle for client validation |
+
+Paths are resolved **relative to the config file**, not the current working directory.
+
+```json
+{
+  "port": 443,
+  "ssl": {
+    "key": "./certs/key.pem",
+    "cert": "./certs/cert.pem"
+  },
+  "folders": "./public",
+  "proxy": {
+    "/api": "http://localhost:4000"
+  }
+}
+```
+
+> All site configs on the same port must either all have `ssl` or none — mixing is a startup error.
+
 ---
 
 ## Configuration Recipes
@@ -421,6 +449,37 @@ Only `/api/*` requests go to the back-end; everything else stays local.
 - `GET /index.html` → served from `./www/index.html`
 - `GET /api/users` → proxied to `http://localhost:4000/users`
 - `GET /missing` → 404 Not Found
+
+### HTTPS with a self-signed certificate (local dev)
+
+```shell
+mkdir certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem \
+  -days 365 -nodes -subj "/CN=localhost"
+```
+
+```json
+{
+  "port": 8443,
+  "ssl": {
+    "key": "./certs/key.pem",
+    "cert": "./certs/cert.pem"
+  },
+  "folders": "www",
+  "proxy": {
+    "/api": "http://localhost:4000"
+  }
+}
+```
+
+Start and open in browser (accept the self-signed cert warning):
+
+```shell
+node server.js --config server-config.json
+# [listen] https://localhost:8443
+```
+
+---
 
 ### CORS headers + rich error responses
 
