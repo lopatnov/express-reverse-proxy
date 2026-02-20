@@ -643,7 +643,7 @@ openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem \
 Start and open in browser (accept the self-signed cert warning):
 
 ```shell
-node server.js --config server-config.json
+express-reverse-proxy --config server-config.json
 # [listen] https://localhost:8443
 ```
 
