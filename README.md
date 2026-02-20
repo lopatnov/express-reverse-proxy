@@ -218,6 +218,18 @@ The port the server listens on. Defaults to `8000`. Can also be set via the `POR
 }
 ```
 
+### logging
+
+Controls HTTP request logging (Morgan). Enabled by default. Set to `false` to silence per-request log lines — useful in production behind another proxy, or to keep console output clean.
+
+```json
+{
+  "port": 8080,
+  "logging": false,
+  "folders": "www"
+}
+```
+
 ### headers
 
 Add headers to every response — useful for CORS in development.

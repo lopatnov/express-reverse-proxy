@@ -300,7 +300,10 @@ const servers = [];
 
 configsByPort.forEach((portConfigs, p) => {
   const app = express();
-  app.use(morgan('combined'));
+  const loggingEnabled = portConfigs.every((c) => c.logging !== false);
+  if (loggingEnabled) {
+    app.use(morgan('combined'));
+  }
 
   // Specific hosts first, catch-all last
   const sorted = [
