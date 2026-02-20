@@ -15,6 +15,7 @@
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Demo](#demo)
 - [How It Works](#how-it-works)
 - [CLI Options](#cli-options)
 - [Configuration](#configuration)
@@ -23,8 +24,10 @@
   - [folders](#folders)
   - [proxy](#proxy)
   - [unhandled](#unhandled)
+  - [host](#host)
 - [Configuration Recipes](#configuration-recipes)
 - [Docker & PM2](#docker--pm2)
+- [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [Built With](#built-with)
@@ -63,7 +66,7 @@ npx @lopatnov/express-reverse-proxy
   "port": 8080,
   "folders": "www",
   "proxy": {
-    "/api": "localhost:4000"
+    "/api": "http://localhost:4000"
   }
 }
 ```
@@ -79,6 +82,50 @@ Your front-end files from `./www` are now served at `http://localhost:8080`, and
 > **No config file?** If `server-config.json` is not found, the server starts with built-in defaults: port `8000`, serving files from the current directory (`.`). A warning is printed to the console.
 
 See [server-config.json](./server-config.json) for a full configuration example.
+
+---
+
+## Demo
+
+The repository includes a full working demo: two mock back-end APIs and two front-end clients, each served by a separate proxy instance.
+
+```
+demo/
+  server-a.js       — Users API    (port 4001)
+  server-b.js       — Products API (port 4002)
+  client-a/         — Frontend A   (port 8080, proxies /api → :4001)
+  client-b/         — Frontend B   (port 8081, proxies /api → :4002)
+  server-config.json
+```
+
+**Start all demo processes at once:**
+
+```shell
+npm run demo
+```
+
+This command starts both mock back-ends and the proxy server (serving both clients) as a single Node.js-managed process group. Open the clients in your browser:
+
+| URL | Description |
+|-----|-------------|
+| `http://localhost:8080` | Client A — Users API demo |
+| `http://localhost:8081` | Client B — Products API demo |
+
+Click the **Send request** buttons to see live API responses flowing through the proxy. Press `Ctrl+C` to stop all processes.
+
+**Demo architecture:**
+
+```
+Browser
+  │
+  ├─▶  localhost:8080  (express-reverse-proxy)
+  │      ├─▶  GET /         → serves demo/client-a/index.html
+  │      └─▶  GET /api/**   → proxied to demo/server-a.js :4001
+  │
+  └─▶  localhost:8081  (express-reverse-proxy)
+         ├─▶  GET /         → serves demo/client-b/index.html
+         └─▶  GET /api/**   → proxied to demo/server-b.js :4002
+```
 
 ---
 
@@ -148,7 +195,7 @@ All configuration lives in a single JSON file (default `server-config.json`).
 
 ### port
 
-The port the server listens on. Defaults to `8080`. Can also be set via the `PORT` environment variable.
+The port the server listens on. Defaults to `8000`. Can also be set via the `PORT` environment variable.
 
 ```json
 {
@@ -222,7 +269,7 @@ Forward requests to a back-end server. Supports three forms:
 
 ```json
 {
-  "proxy": "localhost:4000"
+  "proxy": "http://localhost:4000"
 }
 ```
 
@@ -231,7 +278,7 @@ Forward requests to a back-end server. Supports three forms:
 ```json
 {
   "proxy": {
-    "/api": "localhost:4000"
+    "/api": "http://localhost:4000"
   }
 }
 ```
@@ -241,8 +288,8 @@ Forward requests to a back-end server. Supports three forms:
 ```json
 {
   "proxy": [
-    { "/api": "localhost:4000" },
-    { "/auth": "localhost:5000" }
+    { "/api": "http://localhost:4000" },
+    { "/auth": "http://localhost:5000" }
   ]
 }
 ```
@@ -310,7 +357,7 @@ To use multi-site mode, make the config file an **array** instead of an object. 
 [
   { "host": "app.localhost",   "port": 8080, "folders": "www" },
   { "host": "admin.localhost", "port": 8080, "folders": "admin" },
-  { "host": "api.localhost",   "port": 9090, "proxy": { "/": "localhost:4000" } },
+  { "host": "api.localhost",   "port": 9090, "proxy": { "/": "http://localhost:4000" } },
   { "host": "*",               "port": 9090, "folders": "fallback" }
 ]
 ```
@@ -331,7 +378,7 @@ All unmatched requests are forwarded to `localhost:4000`.
 {
   "port": 8080,
   "folders": "www",
-  "proxy": "localhost:4000"
+  "proxy": "http://localhost:4000"
 }
 ```
 
@@ -347,7 +394,7 @@ Only `/api/*` requests go to the back-end; everything else stays local.
   "port": 8080,
   "folders": "www",
   "proxy": {
-    "/api": "localhost:4000"
+    "/api": "http://localhost:4000"
   }
 }
 ```
@@ -380,10 +427,6 @@ Only `/api/*` requests go to the back-end; everything else stays local.
     "xml": {
       "status": 404,
       "send": "<error>Not Found</error>"
-    },
-    "*": {
-      "status": 404,
-      "file": "./www/not-found.txt"
     }
   }
 }
@@ -404,12 +447,12 @@ docker run -p 8080:8080 -v $(pwd)/server-config.json:/app/server-config.json exp
 
 ### PM2
 
-The included `ecosystem.config.js` runs the server in **cluster mode** — PM2 acts as a load balancer and all worker processes share a single port through the Node.js cluster module. Without cluster mode each instance would try to bind its own copy of the port and all but the first would fail.
+The included `ecosystem.config.cjs` runs the server in **cluster mode** — PM2 acts as a load balancer and all worker processes share a single port through the Node.js cluster module. Without cluster mode each instance would try to bind its own copy of the port and all but the first would fail.
 
 ```javascript
-// ecosystem.config.js
+// ecosystem.config.cjs
 {
-  instances: 'max',   // one worker per CPU core
+  instances: 'max',    // one worker per CPU core
   exec_mode: 'cluster'
 }
 ```
@@ -418,15 +461,56 @@ Run via npm scripts:
 
 | Script | Description |
 |--------|-------------|
-| `npm run pm2-start` | Start cluster (max CPU cores) via `ecosystem.config.js` |
+| `npm run pm2-start` | Start cluster (max CPU cores) via `ecosystem.config.cjs` |
 | `npm run pm2-stop` | Stop all instances |
 | `npm run pm2-status` | Show process status |
 | `npm run pm2-logs` | Show last 200 log lines |
 | `npm run pm2-monitor` | Open real-time monitor |
 
+Or use the CLI directly:
+
 ```shell
-npm run pm2-start
+express-reverse-proxy --cluster start
+express-reverse-proxy --cluster status
+express-reverse-proxy --cluster stop
 ```
+
+---
+
+## Testing
+
+The project uses [Cypress](https://www.cypress.io/) for E2E testing. Tests cover static file serving, reverse proxy routing, custom response headers, and unhandled route behaviour on both Client A (:8080) and Client B (:8081).
+
+**Open Cypress interactively** (pick tests to run in the browser UI):
+
+```shell
+npm run cypress:open
+```
+
+**Run all tests headlessly** (requires demo servers to be running first):
+
+```shell
+# Terminal 1 — start demo servers
+npm run demo
+
+# Terminal 2 — run tests
+npm run cypress:run
+```
+
+**Or start everything automatically:**
+
+```shell
+npm test
+```
+
+`npm test` uses [scripts/test.js](./scripts/test.js), which starts all demo servers, waits for all four ports (4001, 4002, 8080, 8081) to be ready, runs Cypress, then shuts everything down.
+
+### Test coverage
+
+| Suite | What is tested |
+|-------|----------------|
+| `static.cy.js` | Both clients load, serve CSS, return custom headers, redirect unhandled HTML routes, return 404 for unhandled JSON |
+| `proxy.cy.js` | `/api/users` proxied to Users API, `/api/products` proxied to Products API, 404 for non-existent resources, UI button interaction |
 
 ---
 
@@ -440,7 +524,7 @@ npm run pm2-start
 **Proxy requests return 502 or fail silently**
 
 - Confirm the back-end is running and reachable: `curl http://localhost:4000/api/health`.
-- Make sure the proxy address does **not** include a protocol prefix — use `localhost:4000`, not `http://localhost:4000`.
+- The proxy address must include the protocol: `"http://localhost:4000"`.
 
 **Port already in use**
 
@@ -476,6 +560,14 @@ To use your own config, either place `server-config.json` in the working directo
 express-reverse-proxy --config ./configs/dev.json
 ```
 
+**Multiple configs with the same host + port**
+
+```
+Error: Duplicate host "app.localhost" on port 8080
+```
+
+Each `host` + `port` combination must be unique across all entries in an array config. The same host on different ports is allowed.
+
 ---
 
 ## Contributing
@@ -491,12 +583,13 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 ## Built With
 
-- [Node.js](https://nodejs.org/) — JavaScript runtime
+- [Node.js](https://nodejs.org/) — JavaScript runtime (ESM)
 - [Express](https://expressjs.com/) — HTTP server framework
 - [express-http-proxy](https://github.com/villadora/express-http-proxy) — reverse proxy middleware
 - [Morgan](https://github.com/expressjs/morgan) — HTTP request logger
 - [PM2](https://pm2.keymetrics.io/) — production process manager with clustering
-- [ESLint](https://eslint.org/) + [Airbnb style guide](https://github.com/airbnb/javascript) — code linting
+- [Biome](https://biomejs.dev/) — fast linter and formatter (Rust-based)
+- [Cypress](https://www.cypress.io/) — E2E testing framework
 - [Docker](https://www.docker.com/) — containerization
 
 ---

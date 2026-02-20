@@ -22,11 +22,8 @@
   ],
   "scripts": {
     "start": "node ./server.js",
-    "demo:backends": "concurrently \"node demo/server-a.js\" \"node demo/server-b.js\"",
-    "demo:proxy": "node ./server.js --config ./demo/server-config.json",
-    "demo": "concurrently \"npm run demo:backends\" \"npm run demo:proxy\"",
-    "test": "start-server-and-test demo http://localhost:8080 cypress:run",
-    "test:open": "start-server-and-test demo http://localhost:8080 cypress:open",
+    "demo": "node ./scripts/demo.js",
+    "test": "node ./scripts/test.js",
     "cypress:run": "cypress run",
     "cypress:open": "cypress open",
     "lint": "biome check .",
@@ -61,8 +58,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.2",
-    "concurrently": "^9.2.1",
-    "cypress": "^15.10.0",
-    "start-server-and-test": "^2.1.3"
+    "cypress": "^15.10.0"
   }
 }
