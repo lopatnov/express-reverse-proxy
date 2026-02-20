@@ -11,8 +11,8 @@ module.exports = {
       listen_timeout: 30000,
       kill_timeout: 5000,
       shutdown_with_message: true,
-      vizion: false,   // disable git metadata collection
-      pmx: false,      // disable PM2 metrics (avoids wmic ENOENT on Windows 11)
+      vizion: false, // disable git metadata collection
+      pmx: false, // disable PM2 metrics (avoids wmic ENOENT on Windows 11)
       env: {
         NODE_ENV: 'production',
       },

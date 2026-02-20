@@ -504,7 +504,7 @@ Run via npm scripts:
 
 | Script                  | Description                                                        |
 | ----------------------- | ------------------------------------------------------------------ |
-| `npm run pm2-start`     | Start cluster (max CPU cores) with `demo/server-config.json`       |
+| `npm run pm2-start`     | Start cluster (max CPU cores); reads `server-config.json` from cwd |
 | `npm run pm2-restart`   | Restart all instances                                              |
 | `npm run pm2-stop`      | Stop all instances                                                 |
 | `npm run pm2-status`    | Show process status                                                |
