@@ -83,7 +83,10 @@ try {
 
 // ── run cypress ───────────────────────────────────────────────────────────────
 
-const cypress = spawnProc('cypress', ['run'], 'cypress');
+// ELECTRON_RUN_AS_NODE (set by bash/git-bash) causes Cypress.exe to crash;
+// unset it so Electron starts as a normal GUI/headless app.
+const { ELECTRON_RUN_AS_NODE: _removed, ...cleanEnv } = process.env;
+const cypress = spawnProc('cypress', ['run'], 'cypress', { env: cleanEnv });
 
 cypress.on('close', (code) => {
   console.log(`\n[test] Cypress exited with code ${code}`);
