@@ -1,7 +1,7 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Node.js CLI tool to serve static front-end files with a reverse proxy for back-end APIs",
   "type": "module",
   "author": "lopatnov",
@@ -11,7 +11,8 @@
     "./hot-reload-client": "./hot-reload-client.js"
   },
   "bin": {
-    "express-reverse-proxy": "./server.js"
+    "express-reverse-proxy": "./server.js",
+    "lerp": "./server.js"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -67,10 +68,15 @@
     "access": "public"
   },
   "dependencies": {
+    "compression": "^1.7.5",
+    "cors": "^2.8.5",
     "express": "^5.2.1",
     "express-http-proxy": "^2.1.2",
+    "helmet": "^8.0.0",
     "morgan": "^1.10.1",
-    "pm2": "^6.0.14"
+    "pm2": "^6.0.14",
+    "response-time": "^2.3.2",
+    "serve-favicon": "^2.5.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.2",

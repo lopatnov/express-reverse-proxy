@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.0.0] — 2026-02-20
+
+### New features
+
+- **`compression`**: set `"compression": true` (or an options object) to enable gzip/deflate response compression via the `compression` middleware.
+- **`helmet`**: set `"helmet": true` (or an options object) to apply security HTTP headers (CSP, HSTS, X-Frame-Options, and more) via the `helmet` middleware.
+- **`cors`**: set `"cors": true` (or an options object) to enable CORS headers and automatic handling of preflight `OPTIONS` requests via the `cors` middleware.
+- **`favicon`**: set `"favicon": "./path/to/favicon.ico"` to serve a favicon from memory (path resolved relative to the config file).
+- **`responseTime`**: set `"responseTime": true` (or an options object) to add an `X-Response-Time` header to every response.
+
+---
+
 ## [3.0.0] — 2026-02-20
 
 ### New features
