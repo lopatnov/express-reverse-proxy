@@ -21,6 +21,17 @@ app.get('/users/:id', (req, res) => {
   }
 });
 
-app.listen(4001, () => {
+const server = app.listen(4001, () => {
   console.log('[server-a] Users API → http://localhost:4001');
 });
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error('[server-a] Port 4001 is already in use');
+    process.exit(1);
+  }
+  throw err;
+});
+
+process.on('SIGINT', () => server.close(() => process.exit(0)));
+process.on('SIGTERM', () => server.close(() => process.exit(0)));

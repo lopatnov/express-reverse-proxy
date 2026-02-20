@@ -85,10 +85,17 @@ If it has not:
 
 1. Make your changes to the code or documentation.
 
-1. Test your changes manually:
+1. Test your changes:
 
    ```shell
+   # Start the server and verify it works
    node server.js --config server-config.json
+
+   # Run the full demo (backends + proxy)
+   npm run demo
+
+   # Check for lint errors
+   npm run lint
    ```
 
 1. Commit your changes. Use a present-tense message describing what the commit does when applied:

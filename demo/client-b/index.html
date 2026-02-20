@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Demo: static files served on port 8081, API proxied to the Products service on port 4002." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⇄</text></svg>" />
   <title>Client B — Products API · express-reverse-proxy</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -33,7 +35,7 @@
           <code>/api/products</code>
         </div>
         <p class="card-desc">Fetch all products from the Products service.</p>
-        <button class="btn" data-path="/api/products">Send request</button>
+        <button type="button" class="btn" data-path="/api/products">Send request</button>
       </div>
 
       <div class="card">
@@ -42,7 +44,7 @@
           <code>/api/products/1</code>
         </div>
         <p class="card-desc">Fetch a single product by ID.</p>
-        <button class="btn" data-path="/api/products/1">Send request</button>
+        <button type="button" class="btn" data-path="/api/products/1">Send request</button>
       </div>
 
       <div class="card">
@@ -51,7 +53,7 @@
           <code>/api/products/99</code>
         </div>
         <p class="card-desc">Fetch a non-existent product — expect 404.</p>
-        <button class="btn" data-path="/api/products/99">Send request</button>
+        <button type="button" class="btn" data-path="/api/products/99">Send request</button>
       </div>
     </section>
 
@@ -59,7 +61,7 @@
       <div class="response-header">
         <span>Response</span>
         <span id="status-badge" class="status-badge"></span>
-        <button class="btn-clear" id="clear-btn" hidden>Clear</button>
+        <button type="button" class="btn-clear" id="clear-btn" hidden>Clear</button>
       </div>
       <pre id="response-output"><span class="placeholder">← Click a button to send an API request</span></pre>
     </section>

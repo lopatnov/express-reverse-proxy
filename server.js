@@ -35,6 +35,15 @@ const possibleServerArgs = [
       '--cluster start --config ./server-config.json',
     ],
   },
+  {
+    name: '--cluster-config',
+    subArgs: ['file'],
+    description: 'path to a custom PM2 ecosystem config file (default: ecosystem.config.cjs next to server.js)',
+    samples: [
+      '--cluster start --cluster-config ./my-ecosystem.config.cjs',
+      '--cluster restart --cluster-config /etc/myapp/ecosystem.config.cjs',
+    ],
+  },
 ];
 
 function exitError(msg, code = -1) {
@@ -112,7 +121,9 @@ if (serverArgs['--cluster']) {
   }
 
   const action = isAction ? nextArg : 'start';
-  const ecosystemConfig = path.join(__dirname, 'ecosystem.config.cjs');
+  const ecosystemConfig = serverArgs['--cluster-config']
+    ? path.resolve(process.cwd(), serverArgs['--cluster-config'].args[0])
+    : path.join(__dirname, 'ecosystem.config.cjs');
   const cwd = process.cwd();
   const configPassthrough = serverArgs['--config']
     ? ['--', '--config', serverArgs['--config'].args[0]]
@@ -150,7 +161,11 @@ if (!fs.existsSync(configFile)) {
   rawConfig = DEFAULT_CONFIG;
 } else {
   console.log(`[config] ${configFile}`);
-  rawConfig = JSON.parse(fs.readFileSync(configFile));
+  try {
+    rawConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+  } catch (err) {
+    exitError(`Failed to parse "${configFile}": ${err.message}`, 1);
+  }
 }
 
 const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
@@ -158,7 +173,7 @@ const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
 // Validate: same host on same port is an error; same host on different ports is OK
 const seen = new Set();
 configs.forEach((c) => {
-  const p = c.port || process.env.PORT || 8000;
+  const p = parseInt(c.port || process.env.PORT || 8000, 10);
   const key = `${p}:${c.host || '*'}`;
   if (seen.has(key)) {
     exitError(`Duplicate host "${c.host || '*'}" on port ${p}`, 1);

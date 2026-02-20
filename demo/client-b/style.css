@@ -193,7 +193,7 @@ main {
   border-radius: 20px;
   display: none;
 }
-.status-badge.ok  { display: inline; background: rgba(63, 185, 80, 0.2); color: #3fb950; }
+.status-badge.ok  { display: inline; background: rgba(88, 166, 255, 0.2); color: var(--accent); }
 .status-badge.err { display: inline; background: rgba(248, 81, 73, 0.2); color: var(--red); }
 
 #response-output {

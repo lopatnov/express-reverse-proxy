@@ -21,6 +21,17 @@ app.get('/products/:id', (req, res) => {
   }
 });
 
-app.listen(4002, () => {
+const server = app.listen(4002, () => {
   console.log('[server-b] Products API → http://localhost:4002');
 });
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error('[server-b] Port 4002 is already in use');
+    process.exit(1);
+  }
+  throw err;
+});
+
+process.on('SIGINT', () => server.close(() => process.exit(0)));
+process.on('SIGTERM', () => server.close(() => process.exit(0)));

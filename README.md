@@ -106,9 +106,9 @@ npm run demo
 
 This command starts both mock back-ends and the proxy server (serving both clients) as a single Node.js-managed process group. Open the clients in your browser:
 
-| URL | Description |
-|-----|-------------|
-| `http://localhost:8080` | Client A — Users API demo |
+| URL                     | Description                  |
+| ----------------------- | ---------------------------- |
+| `http://localhost:8080` | Client A — Users API demo    |
 | `http://localhost:8081` | Client B — Products API demo |
 
 Click the **Send request** buttons to see live API responses flowing through the proxy. Press `Ctrl+C` to stop all processes.
@@ -154,22 +154,23 @@ Static files always take priority over proxy rules. Proxies are checked only whe
 
 ## CLI Options
 
-| Option | Description |
-|--------|-------------|
-| `--help` | Print help and exit |
-| `--config <file>` | Path to the JSON configuration file. Default: `server-config.json` |
-| `--cluster [action]` | Manage the PM2 cluster. Action defaults to `start` when omitted |
+| Option                    | Description                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `--help`                  | Print help and exit                                                                             |
+| `--config <file>`         | Path to the JSON configuration file. Default: `server-config.json`                              |
+| `--cluster [action]`      | Manage the PM2 cluster. Action defaults to `start` when omitted                                 |
+| `--cluster-config <file>` | Path to a custom PM2 ecosystem config file. Default: `ecosystem.config.cjs` next to `server.js` |
 
 ### --cluster actions
 
-| Action | Description |
-|--------|-------------|
-| `start` | Start the PM2 cluster (default when action is omitted) |
-| `stop` | Stop all cluster instances |
-| `restart` | Restart all cluster instances |
-| `status` | Show PM2 process status table |
-| `logs` | Stream the last 200 log lines |
-| `monitor` | Open the PM2 real-time monitor |
+| Action    | Description                                            |
+| --------- | ------------------------------------------------------ |
+| `start`   | Start the PM2 cluster (default when action is omitted) |
+| `stop`    | Stop all cluster instances                             |
+| `restart` | Restart all cluster instances                          |
+| `status`  | Show PM2 process status table                          |
+| `logs`    | Stream the last 200 log lines                          |
+| `monitor` | Open the PM2 real-time monitor                         |
 
 ```shell
 express-reverse-proxy --cluster
@@ -185,6 +186,13 @@ Pass a custom config to cluster workers with `--config`:
 
 ```shell
 express-reverse-proxy --cluster start --config ./configs/prod.json
+```
+
+Use a custom PM2 ecosystem file with `--cluster-config`:
+
+```shell
+express-reverse-proxy --cluster start --cluster-config ./my-ecosystem.config.cjs
+express-reverse-proxy --cluster restart --cluster-config /etc/myapp/ecosystem.config.cjs
 ```
 
 ---
@@ -253,13 +261,13 @@ Serve static files. Supports three forms:
 
 The above maps:
 
-| URL path | Local directory |
-|----------|----------------|
-| `/` | `dist` |
-| `/api` | `./mock-json` |
-| `/assets/images` | `./images` |
-| `/assets/css` | `./scss/dist` |
-| `/assets/script` | `./scripts` |
+| URL path         | Local directory |
+| ---------------- | --------------- |
+| `/`              | `dist`          |
+| `/api`           | `./mock-json`   |
+| `/assets/images` | `./images`      |
+| `/assets/css`    | `./scss/dist`   |
+| `/assets/script` | `./scripts`     |
 
 ### proxy
 
@@ -323,21 +331,21 @@ Control responses when no static file or proxy rule matches. Rules are selected 
 
 Each `Accept` key supports these response options:
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `status` | `number` | HTTP response status code |
-| `headers` | `object` | Additional response headers |
-| `send` | `string \| object` | Inline response body (text or JSON) |
-| `file` | `string` | Path to file whose contents are sent as body |
+| Option    | Type               | Description                                  |
+| --------- | ------------------ | -------------------------------------------- |
+| `status`  | `number`           | HTTP response status code                    |
+| `headers` | `object`           | Additional response headers                  |
+| `send`    | `string \| object` | Inline response body (text or JSON)          |
+| `file`    | `string`           | Path to file whose contents are sent as body |
 
 ### host
 
 Route requests to this configuration based on the HTTP `Host` header. Enables virtual hosting — multiple sites on one server process.
 
-| Value | Behavior |
-|-------|-----------|
-| `"app.localhost"` | Only handles requests whose `Host` header matches exactly |
-| `"*"` or omitted | Catch-all — handles any request not matched by another entry |
+| Value             | Behavior                                                     |
+| ----------------- | ------------------------------------------------------------ |
+| `"app.localhost"` | Only handles requests whose `Host` header matches exactly    |
+| `"*"` or omitted  | Catch-all — handles any request not matched by another entry |
 
 To use multi-site mode, make the config file an **array** instead of an object. Specific hosts are always checked before the catch-all.
 
@@ -345,9 +353,9 @@ To use multi-site mode, make the config file an **array** instead of an object. 
 
 ```json
 [
-  { "host": "app.localhost",   "port": 8080, "folders": "www" },
+  { "host": "app.localhost", "port": 8080, "folders": "www" },
   { "host": "admin.localhost", "port": 8080, "folders": "admin" },
-  { "host": "*",               "port": 8080, "folders": "fallback" }
+  { "host": "*", "port": 8080, "folders": "fallback" }
 ]
 ```
 
@@ -355,10 +363,14 @@ To use multi-site mode, make the config file an **array** instead of an object. 
 
 ```json
 [
-  { "host": "app.localhost",   "port": 8080, "folders": "www" },
+  { "host": "app.localhost", "port": 8080, "folders": "www" },
   { "host": "admin.localhost", "port": 8080, "folders": "admin" },
-  { "host": "api.localhost",   "port": 9090, "proxy": { "/": "http://localhost:4000" } },
-  { "host": "*",               "port": 9090, "folders": "fallback" }
+  {
+    "host": "api.localhost",
+    "port": 9090,
+    "proxy": { "/": "http://localhost:4000" }
+  },
+  { "host": "*", "port": 9090, "folders": "fallback" }
 ]
 ```
 
@@ -447,25 +459,49 @@ docker run -p 8080:8080 -v $(pwd)/server-config.json:/app/server-config.json exp
 
 ### PM2
 
-The included `ecosystem.config.cjs` runs the server in **cluster mode** — PM2 acts as a load balancer and all worker processes share a single port through the Node.js cluster module. Without cluster mode each instance would try to bind its own copy of the port and all but the first would fail.
+The package includes a default `ecosystem.config.cjs`, resolved automatically from the package directory. It runs the server in **cluster mode** — PM2 acts as a load balancer and all worker processes share a single port through the Node.js cluster module. Without cluster mode each instance would try to bind its own copy of the port and all but the first would fail.
+
+<details>
+<summary>Default ecosystem.config.cjs (for reference)</summary>
 
 ```javascript
 // ecosystem.config.cjs
-{
-  instances: 'max',    // one worker per CPU core
-  exec_mode: 'cluster'
-}
+const path = require("path");
+module.exports = {
+  apps: [
+    {
+      name: "express-reverse-proxy", // process name in pm2 list
+      script: path.join(__dirname, "server.js"), // absolute path — works after global install
+      instances: "max", // one worker per CPU core
+      exec_mode: "cluster", // required for port sharing
+      wait_ready: true, // wait for process.send('ready') before marking healthy
+      listen_timeout: 30000, // ms to wait for 'ready' signal
+      kill_timeout: 5000, // ms to wait for graceful shutdown before SIGKILL
+      shutdown_with_message: true, // send 'shutdown' message instead of SIGINT
+      env: { NODE_ENV: "production" },
+      env_development: { NODE_ENV: "development" },
+    },
+  ],
+};
+```
+
+</details>
+
+To customize PM2 behavior, provide your own file via `--cluster-config` (optional):
+
+```shell
+express-reverse-proxy --cluster start --cluster-config ./my-ecosystem.config.cjs
 ```
 
 Run via npm scripts:
 
-| Script | Description |
-|--------|-------------|
-| `npm run pm2-start` | Start cluster (max CPU cores) via `ecosystem.config.cjs` |
-| `npm run pm2-stop` | Stop all instances |
-| `npm run pm2-status` | Show process status |
-| `npm run pm2-logs` | Show last 200 log lines |
-| `npm run pm2-monitor` | Open real-time monitor |
+| Script                | Description                                              |
+| --------------------- | -------------------------------------------------------- |
+| `npm run pm2-start`   | Start cluster (max CPU cores) via `ecosystem.config.cjs` |
+| `npm run pm2-stop`    | Stop all instances                                       |
+| `npm run pm2-status`  | Show process status                                      |
+| `npm run pm2-logs`    | Show last 200 log lines                                  |
+| `npm run pm2-monitor` | Open real-time monitor                                   |
 
 Or use the CLI directly:
 
@@ -507,10 +543,10 @@ npm test
 
 ### Test coverage
 
-| Suite | What is tested |
-|-------|----------------|
-| `static.cy.js` | Both clients load, serve CSS, return custom headers, redirect unhandled HTML routes, return 404 for unhandled JSON |
-| `proxy.cy.js` | `/api/users` proxied to Users API, `/api/products` proxied to Products API, 404 for non-existent resources, UI button interaction |
+| Suite          | What is tested                                                                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `static.cy.js` | Both clients load, serve CSS, return custom headers, redirect unhandled HTML routes, return 404 for unhandled JSON                |
+| `proxy.cy.js`  | `/api/users` proxied to Users API, `/api/products` proxied to Products API, 404 for non-existent resources, UI button interaction |
 
 ---
 
