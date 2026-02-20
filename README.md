@@ -218,6 +218,55 @@ The port the server listens on. Defaults to `8000`. Can also be set via the `POR
 }
 ```
 
+### logging
+
+Controls HTTP request logging (Morgan). Enabled by default. Set to `false` to silence per-request log lines — useful in production behind another proxy, or to keep console output clean.
+
+```json
+{
+  "port": 8080,
+  "logging": false,
+  "folders": "www"
+}
+```
+
+### hotReload
+
+Watches the `folders` directories for file changes and automatically reloads connected browser tabs. Uses Server-Sent Events (SSE). Intended for local development only.
+
+```json
+{
+  "port": 8080,
+  "hotReload": true,
+  "folders": "www"
+}
+```
+
+The server exposes two endpoints when hot reload is enabled:
+
+| Endpoint | Description |
+| --------------------------------- | ------------------------------------------ |
+| `GET /__hot-reload__` | SSE stream — browsers subscribe here |
+| `GET /__hot-reload__/client.js` | Ready-to-use client script |
+
+#### Connecting the client
+
+**Option A — plain HTML project**: add a script tag to your page. The file is served directly by the dev server, no installation needed:
+
+```html
+<script src="/__hot-reload__/client.js"></script>
+```
+
+**Option B — bundled project** (Vite, webpack, etc.): import the client module. The bundler resolves it through the package `exports` field:
+
+```js
+import '@lopatnov/express-reverse-proxy/hot-reload-client';
+```
+
+Both options connect to `/__hot-reload__` and call `location.reload()` when a file change is detected. The connection is re-established automatically after 3 seconds if the server restarts.
+
+> **PM2 note:** hot reload works best with a single process (`node server.js`). If using PM2, set `instances: 1` in your ecosystem config — each worker maintains its own file watcher and SSE client list independently.
+
 ### headers
 
 Add headers to every response — useful for CORS in development.
@@ -385,6 +434,34 @@ To use multi-site mode, make the config file an **array** instead of an object. 
 >
 > Two entries with the same `host` **and** `port` cause a startup error. The same `host` on different ports is allowed.
 
+### ssl
+
+Enable HTTPS on a port by adding an `ssl` object to any site config for that port. All sites sharing the same port use the same certificate.
+
+| Field  | Type     | Description                                              |
+| ------ | -------- | -------------------------------------------------------- |
+| `key`  | `string` | Path to the private key file (PEM format)                |
+| `cert` | `string` | Path to the certificate file (PEM format)                |
+| `ca`   | `string` | *(optional)* Path to the CA bundle for client validation |
+
+Paths are resolved **relative to the config file**, not the current working directory.
+
+```json
+{
+  "port": 443,
+  "ssl": {
+    "key": "./certs/key.pem",
+    "cert": "./certs/cert.pem"
+  },
+  "folders": "./public",
+  "proxy": {
+    "/api": "http://localhost:4000"
+  }
+}
+```
+
+> All site configs on the same port must either all have `ssl` or none — mixing is a startup error.
+
 ---
 
 ## Configuration Recipes
@@ -421,6 +498,37 @@ Only `/api/*` requests go to the back-end; everything else stays local.
 - `GET /index.html` → served from `./www/index.html`
 - `GET /api/users` → proxied to `http://localhost:4000/users`
 - `GET /missing` → 404 Not Found
+
+### HTTPS with a self-signed certificate (local dev)
+
+```shell
+mkdir certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem \
+  -days 365 -nodes -subj "/CN=localhost"
+```
+
+```json
+{
+  "port": 8443,
+  "ssl": {
+    "key": "./certs/key.pem",
+    "cert": "./certs/cert.pem"
+  },
+  "folders": "www",
+  "proxy": {
+    "/api": "http://localhost:4000"
+  }
+}
+```
+
+Start and open in browser (accept the self-signed cert warning):
+
+```shell
+node server.js --config server-config.json
+# [listen] https://localhost:8443
+```
+
+---
 
 ### CORS headers + rich error responses
 
@@ -518,6 +626,56 @@ express-reverse-proxy --cluster start
 express-reverse-proxy --cluster status
 express-reverse-proxy --cluster stop
 ```
+
+### Behind a reverse proxy
+
+For production deployments it is common to place a dedicated reverse proxy in front of `express-reverse-proxy` to handle TLS termination, HTTP/2, gzip compression, and rate limiting. In this setup the Node.js server listens on a local port over plain HTTP, while the outer proxy terminates HTTPS connections from the internet:
+
+```
+Internet (HTTPS / HTTP/2)
+        ↓
+  Nginx or Caddy          — TLS, HTTP/2, gzip, rate limiting
+        ↓ HTTP/1.1 (localhost)
+  express-reverse-proxy   — PM2 cluster, routing, static files, API proxy
+        ↓
+  Backend API servers
+```
+
+**No `ssl` config needed** in `server-config.json` when the outer proxy handles TLS.
+
+#### Nginx
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    location / {
+        proxy_pass         http://127.0.0.1:8080;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Free certificates can be obtained with [Certbot](https://certbot.eff.org/): `certbot --nginx -d example.com`.
+
+#### Caddy
+
+[Caddy](https://caddyserver.com/) provisions and renews Let's Encrypt certificates automatically — no extra tooling needed:
+
+```
+example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Start with `caddy run --config Caddyfile`.
 
 ---
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import https from 'node:https';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -151,6 +152,7 @@ if (serverArgs['--config']) {
     configFile = path.join(configFile, './server-config.json');
   }
 }
+const configDir = path.dirname(path.resolve(configFile));
 
 const DEFAULT_CONFIG = { port: 8000, folders: '.' };
 
@@ -193,6 +195,21 @@ configs.forEach((c) => {
   if (!configsByPort.has(p)) configsByPort.set(p, []);
   configsByPort.get(p).push(c);
 });
+
+// Validate: cannot mix SSL and non-SSL site configs on the same port
+for (const [p, group] of configsByPort) {
+  const sslCount = group.filter((c) => c.ssl).length;
+  if (sslCount > 0 && sslCount < group.length) {
+    exitError(`Port ${p}: cannot mix SSL and non-SSL site configs on the same port.`, 1);
+  }
+}
+
+function collectFolderPaths(folders) {
+  if (typeof folders === 'string') return [folders];
+  if (Array.isArray(folders)) return folders.flatMap(collectFolderPaths);
+  if (folders instanceof Object) return Object.values(folders).flatMap(collectFolderPaths);
+  return [];
+}
 
 function addStaticFolderByName(router, port, urlPath, folder) {
   let folderPath = folder;
@@ -290,7 +307,47 @@ const servers = [];
 
 configsByPort.forEach((portConfigs, p) => {
   const app = express();
-  app.use(morgan('combined'));
+  const loggingEnabled = portConfigs.every((c) => c.logging !== false);
+  if (loggingEnabled) {
+    app.use(morgan('combined'));
+  }
+
+  // Hot reload via SSE
+  const hotReloadEnabled = portConfigs.some((c) => c.hotReload === true);
+  if (hotReloadEnabled) {
+    const sseClients = new Set();
+    let reloadTimer = null;
+
+    app.get('/__hot-reload__', (req, res) => {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+      sseClients.add(res);
+      req.on('close', () => sseClients.delete(res));
+    });
+
+    app.get('/__hot-reload__/client.js', (_req, res) => {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      res.sendFile(path.join(__dirname, 'hot-reload-client.js'));
+    });
+
+    const watchPaths = [
+      ...new Set(portConfigs.flatMap((c) => collectFolderPaths(c.folders || []))),
+    ];
+    for (const folder of watchPaths) {
+      const absPath = path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder);
+      if (fs.existsSync(absPath)) {
+        fs.watch(absPath, { recursive: true }, () => {
+          clearTimeout(reloadTimer);
+          reloadTimer = setTimeout(() => {
+            for (const client of sseClients) client.write('data: reload\n\n');
+          }, 100);
+        });
+      }
+    }
+    console.log(`[hot-reload] watching ${watchPaths.length} folder(s) on port ${p}`);
+  }
 
   // Specific hosts first, catch-all last
   const sorted = [
@@ -341,10 +398,31 @@ configsByPort.forEach((portConfigs, p) => {
     }
   });
 
-  const server = app.listen(p, () => {
-    console.log(`[listen] http://localhost:${p}`);
-    if (process.send) process.send('ready');
-  });
+  const sslConfig = portConfigs.find((c) => c.ssl)?.ssl;
+  let server;
+  if (sslConfig) {
+    let sslOptions;
+    try {
+      sslOptions = {
+        key: fs.readFileSync(path.resolve(configDir, sslConfig.key)),
+        cert: fs.readFileSync(path.resolve(configDir, sslConfig.cert)),
+      };
+      if (sslConfig.ca) {
+        sslOptions.ca = fs.readFileSync(path.resolve(configDir, sslConfig.ca));
+      }
+    } catch (err) {
+      exitError(`SSL cert/key error on port ${p}: ${err.message}`, 1);
+    }
+    server = https.createServer(sslOptions, app).listen(p, () => {
+      console.log(`[listen] https://localhost:${p}`);
+      if (process.send) process.send('ready');
+    });
+  } else {
+    server = app.listen(p, () => {
+      console.log(`[listen] http://localhost:${p}`);
+      if (process.send) process.send('ready');
+    });
+  }
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       exitError(`Port ${p} is already in use`, 1);
