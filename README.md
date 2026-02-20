@@ -30,6 +30,7 @@
   - [rateLimit](#ratelimit)
   - [basicAuth](#basicauth)
   - [cgi](#cgi)
+  - [upload](#upload)
   - [headers](#headers)
   - [folders](#folders)
   - [proxy](#proxy)
@@ -698,6 +699,100 @@ print("Hello from CGI!")
 
 > **Windows note:** Scripts are not directly executable on Windows. You must configure `interpreters` for every extension you use; otherwise the request returns a `500` spawn error.
 
+**Array form** — multiple independent CGI directories on the same site:
+
+```json
+{
+  "cgi": [
+    {
+      "path": "/py-scripts",
+      "dir": "./py-scripts",
+      "extensions": [".py"],
+      "interpreters": { ".py": "python3" }
+    },
+    {
+      "path": "/node-scripts",
+      "dir": "./node-scripts",
+      "extensions": [".js"],
+      "interpreters": { ".js": "node" }
+    }
+  ]
+}
+```
+
+Each entry in the array sets up an independent CGI mount point with its own directory, URL prefix, extensions, and interpreters.
+
+### upload
+
+Accept file uploads via `multipart/form-data` and save them to a local directory. Uploaded files can be retrieved immediately via `GET`.
+
+```json
+{
+  "port": 8080,
+  "upload": {
+    "path": "/upload",
+    "dir": "./uploads",
+    "maxFileSize": 10485760,
+    "maxFiles": 10,
+    "allowedTypes": ["image/jpeg", "image/png", "application/pdf"],
+    "fieldName": "file"
+  }
+}
+```
+
+Shorthand — directory only (all defaults apply):
+
+```json
+{
+  "upload": "./uploads"
+}
+```
+
+| Option          | Default        | Description                                                              |
+| --------------- | -------------- | ------------------------------------------------------------------------ |
+| `path`          | `"/upload"`    | URL prefix for the upload endpoint                                       |
+| `dir`           | `"./uploads"`  | Save directory (resolved relative to the config file)                    |
+| `maxFileSize`   | none           | Maximum file size in bytes; responds with `413` when exceeded            |
+| `maxFiles`      | none           | Maximum number of files per request; responds with `400` when exceeded   |
+| `allowedTypes`  | none           | MIME type whitelist; responds with `400` when the type is not in the list|
+| `fieldName`     | any field      | Accept only files uploaded in this specific form field                   |
+
+**Array form** — multiple upload endpoints on the same site:
+
+```json
+{
+  "upload": [
+    { "path": "/photos", "dir": "./photos", "allowedTypes": ["image/jpeg", "image/png"] },
+    { "path": "/docs",   "dir": "./documents", "allowedTypes": ["application/pdf"], "maxFileSize": 5242880 }
+  ]
+}
+```
+
+**HTTP interface:**
+
+| Method | URL              | Description                              |
+| ------ | ---------------- | ---------------------------------------- |
+| `POST` | `<path>`         | Upload files via `multipart/form-data`   |
+| `GET`  | `<path>/<name>`  | Retrieve a previously uploaded file      |
+
+`POST` success response (`200`):
+
+```json
+{
+  "files": [
+    { "file": "photo-1700000000000-123456789.jpg", "size": 45678, "originalName": "photo.jpg" }
+  ]
+}
+```
+
+Upload with curl:
+
+```shell
+curl -F "file=@photo.jpg" http://localhost:8080/upload
+```
+
+> The upload directory is created automatically at startup if it does not exist. Saved filenames include a timestamp and random suffix to avoid collisions.
+
 ---
 
 ## Configuration Recipes
@@ -1071,6 +1166,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [express-rate-limit](https://express-rate-limit.mintlify.app/) — request rate limiting
 - [express-basic-auth](https://github.com/LionC/express-basic-auth) — HTTP Basic Authentication
 - CGI support — built on Node.js `child_process.spawn` (no external dependency)
+- [multer](https://github.com/expressjs/multer) — multipart/form-data file upload handling
 - [PM2](https://pm2.keymetrics.io/) — production process manager with clustering
 - [Biome](https://biomejs.dev/) — fast linter and formatter (Rust-based)
 - [Cypress](https://www.cypress.io/) — E2E testing framework

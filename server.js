@@ -12,6 +12,7 @@ import proxy from 'express-http-proxy';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import multer from 'multer';
 import responseTime from 'response-time';
 import favicon from 'serve-favicon';
 
@@ -415,88 +416,152 @@ configsByPort.forEach((portConfigs, p) => {
 
     if (siteConfig.cgi) {
       const cgiRaw = siteConfig.cgi;
-      const cgiConfig = typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw;
-      const cgiUrlPath = cgiConfig.path || '/cgi-bin';
-      const cgiDirResolved = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
-      const cgiExts = new Set(cgiConfig.extensions || ['.cgi', '.pl', '.py', '.sh']);
-      const interps = cgiConfig.interpreters || {};
+      const cgiConfigs = Array.isArray(cgiRaw)
+        ? cgiRaw
+        : [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
 
-      router.use(cgiUrlPath, (req, res, next) => {
-        const scriptPath = path.resolve(path.join(cgiDirResolved, req.path));
-        if (!scriptPath.startsWith(cgiDirResolved + path.sep)) return next();
+      for (const cgiConfig of cgiConfigs) {
+        const cgiUrlPath = cgiConfig.path || '/cgi-bin';
+        const cgiDirResolved = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
+        const cgiExts = new Set(cgiConfig.extensions || ['.cgi', '.pl', '.py', '.sh']);
+        const interps = cgiConfig.interpreters || {};
 
-        const ext = path.extname(scriptPath);
-        if (!cgiExts.has(ext) || !fs.existsSync(scriptPath)) return next();
+        router.use(cgiUrlPath, (req, res, next) => {
+          const scriptPath = path.resolve(path.join(cgiDirResolved, req.path));
+          if (!scriptPath.startsWith(cgiDirResolved + path.sep)) return next();
 
-        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-        const env = {
-          ...process.env,
-          GATEWAY_INTERFACE: 'CGI/1.1',
-          SERVER_PROTOCOL: 'HTTP/1.1',
-          SERVER_SOFTWARE: 'express-reverse-proxy',
-          REQUEST_METHOD: req.method.toUpperCase(),
-          SCRIPT_FILENAME: scriptPath,
-          SCRIPT_NAME: cgiUrlPath + req.path,
-          PATH_INFO: '',
-          QUERY_STRING: url.search ? url.search.slice(1) : '',
-          REMOTE_ADDR: req.ip || '127.0.0.1',
-          CONTENT_TYPE: req.headers['content-type'] || '',
-          CONTENT_LENGTH: req.headers['content-length'] || '0',
-          SERVER_NAME: req.hostname || 'localhost',
-          SERVER_PORT: String(p),
-        };
-        for (const [k, v] of Object.entries(req.headers)) {
-          env[`HTTP_${k.toUpperCase().replace(/-/g, '_')}`] = Array.isArray(v) ? v.join(', ') : v;
-        }
+          const ext = path.extname(scriptPath);
+          if (!cgiExts.has(ext) || !fs.existsSync(scriptPath)) return next();
 
-        const interpreter = interps[ext];
-        const command = interpreter || scriptPath;
-        const args = interpreter ? [scriptPath] : [];
-        const child = spawn(command, args, { env, cwd: path.dirname(scriptPath) });
-
-        child.stdin.on('error', (_err) => {});
-        req.pipe(child.stdin);
-
-        let headersParsed = false;
-        let rawBuf = '';
-        child.stdout.on('data', (chunk) => {
-          if (!headersParsed) {
-            rawBuf += chunk.toString('binary');
-            const m = /\r?\n\r?\n/.exec(rawBuf);
-            if (m) {
-              const rawHeaders = rawBuf.substring(0, m.index);
-              const bodyStart = Buffer.from(rawBuf.substring(m.index + m[0].length), 'binary');
-              headersParsed = true;
-              let statusCode = 200;
-              for (const line of rawHeaders.split(/\r?\n/)) {
-                const colon = line.indexOf(':');
-                if (colon === -1) continue;
-                const name = line.substring(0, colon).trim();
-                const value = line.substring(colon + 1).trim();
-                if (name.toLowerCase() === 'status') {
-                  statusCode = Number.parseInt(value, 10) || 200;
-                } else {
-                  res.setHeader(name, value);
-                }
-              }
-              res.status(statusCode);
-              if (bodyStart.length) res.write(bodyStart);
-            }
-          } else {
-            res.write(chunk);
+          const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+          const env = {
+            ...process.env,
+            GATEWAY_INTERFACE: 'CGI/1.1',
+            SERVER_PROTOCOL: 'HTTP/1.1',
+            SERVER_SOFTWARE: 'express-reverse-proxy',
+            REQUEST_METHOD: req.method.toUpperCase(),
+            SCRIPT_FILENAME: scriptPath,
+            SCRIPT_NAME: cgiUrlPath + req.path,
+            PATH_INFO: '',
+            QUERY_STRING: url.search ? url.search.slice(1) : '',
+            REMOTE_ADDR: req.ip || '127.0.0.1',
+            CONTENT_TYPE: req.headers['content-type'] || '',
+            CONTENT_LENGTH: req.headers['content-length'] || '0',
+            SERVER_NAME: req.hostname || 'localhost',
+            SERVER_PORT: String(p),
+          };
+          for (const [k, v] of Object.entries(req.headers)) {
+            env[`HTTP_${k.toUpperCase().replace(/-/g, '_')}`] = Array.isArray(v) ? v.join(', ') : v;
           }
+
+          const interpreter = interps[ext];
+          const command = interpreter || scriptPath;
+          const args = interpreter ? [scriptPath] : [];
+          const child = spawn(command, args, { env, cwd: path.dirname(scriptPath) });
+
+          child.stdin.on('error', (_err) => {});
+          req.pipe(child.stdin);
+
+          let headersParsed = false;
+          let rawBuf = '';
+          child.stdout.on('data', (chunk) => {
+            if (!headersParsed) {
+              rawBuf += chunk.toString('binary');
+              const m = /\r?\n\r?\n/.exec(rawBuf);
+              if (m) {
+                const rawHeaders = rawBuf.substring(0, m.index);
+                const bodyStart = Buffer.from(rawBuf.substring(m.index + m[0].length), 'binary');
+                headersParsed = true;
+                let statusCode = 200;
+                for (const line of rawHeaders.split(/\r?\n/)) {
+                  const colon = line.indexOf(':');
+                  if (colon === -1) continue;
+                  const name = line.substring(0, colon).trim();
+                  const value = line.substring(colon + 1).trim();
+                  if (name.toLowerCase() === 'status') {
+                    statusCode = Number.parseInt(value, 10) || 200;
+                  } else {
+                    res.setHeader(name, value);
+                  }
+                }
+                res.status(statusCode);
+                if (bodyStart.length) res.write(bodyStart);
+              }
+            } else {
+              res.write(chunk);
+            }
+          });
+          child.stdout.on('end', () => {
+            if (!headersParsed) res.status(500).send('CGI script produced no output');
+            else res.end();
+          });
+          child.stderr.on('data', (data) => console.error(`[cgi] ${scriptPath}: ${data}`));
+          child.on('error', (err) => {
+            console.error(`[cgi] spawn error for ${scriptPath}: ${err.message}`);
+            if (!res.headersSent) res.status(500).send(`CGI error: ${err.message}`);
+          });
+          console.log(`[cgi] ${req.method} ${cgiUrlPath}${req.path} → ${scriptPath}`);
         });
-        child.stdout.on('end', () => {
-          if (!headersParsed) res.status(500).send('CGI script produced no output');
-          else res.end();
+      }
+    }
+
+    if (siteConfig.upload) {
+      const uploadRaw = siteConfig.upload;
+      const uploadConfigs = Array.isArray(uploadRaw)
+        ? uploadRaw
+        : [typeof uploadRaw === 'string' ? { dir: uploadRaw } : uploadRaw];
+
+      for (const uploadConfig of uploadConfigs) {
+        const uploadUrlPath = uploadConfig.path || '/upload';
+        const uploadDir = path.resolve(configDir, uploadConfig.dir || './uploads');
+        const allowedTypes = uploadConfig.allowedTypes ? new Set(uploadConfig.allowedTypes) : null;
+
+        fs.mkdirSync(uploadDir, { recursive: true });
+
+        const storage = multer.diskStorage({
+          destination: uploadDir,
+          filename: (_req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_.-]/g, '_');
+            cb(null, `${base}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+          },
         });
-        child.stderr.on('data', (data) => console.error(`[cgi] ${scriptPath}: ${data}`));
-        child.on('error', (err) => {
-          console.error(`[cgi] spawn error for ${scriptPath}: ${err.message}`);
-          if (!res.headersSent) res.status(500).send(`CGI error: ${err.message}`);
+
+        const fileFilter = allowedTypes
+          ? (_req, file, cb) => {
+              if (allowedTypes.has(file.mimetype)) cb(null, true);
+              else
+                cb(
+                  Object.assign(new Error(`File type not allowed: ${file.mimetype}`), {
+                    status: 400,
+                  }),
+                );
+            }
+          : undefined;
+
+        const limits = {};
+        if (uploadConfig.maxFileSize) limits.fileSize = uploadConfig.maxFileSize;
+        if (uploadConfig.maxFiles) limits.files = uploadConfig.maxFiles;
+
+        const uploader = multer({ storage, limits, fileFilter });
+        const multerMiddleware = uploadConfig.fieldName
+          ? uploader.array(uploadConfig.fieldName)
+          : uploader.any();
+
+        router.post(uploadUrlPath, multerMiddleware, (req, res) => {
+          if (!req.files?.length) return res.status(400).json({ error: 'No files uploaded' });
+          res.json({
+            files: req.files.map((f) => ({
+              file: f.filename,
+              size: f.size,
+              originalName: f.originalname,
+            })),
+          });
         });
-        console.log(`[cgi] ${req.method} ${cgiUrlPath}${req.path} → ${scriptPath}`);
-      });
+
+        router.use(uploadUrlPath, express.static(uploadDir));
+        console.log(`[upload] POST ${uploadUrlPath} → ${uploadDir}`);
+      }
     }
 
     if (siteConfig.proxy) {
