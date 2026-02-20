@@ -23,7 +23,9 @@
     "development"
   ],
   "scripts": {
-    "start": "node ./server.js",
+    "start": "node ./server.js --config demo/server-config.json",
+    "start:server-a": "node ./demo/server-a.js",
+    "start:server-b": "node ./demo/server-b.js",
     "demo": "node ./scripts/demo.js",
     "test": "node ./scripts/test.js",
     "cypress:run": "cypress run",
