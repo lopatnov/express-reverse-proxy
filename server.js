@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { spawnSync } from 'child_process';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
-import morgan from 'morgan';
 import proxy from 'express-http-proxy';
+import morgan from 'morgan';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,7 +18,8 @@ const possibleServerArgs = [
   {
     name: '--config',
     subArgs: ['file name'],
-    description: 'sets server configuration file. Default value of file name is "server-config.json"',
+    description:
+      'sets server configuration file. Default value of file name is "server-config.json"',
     samples: ['--config ./server-config.json', '--config ./configs/express-reverse-proxy.json'],
   },
   {
@@ -38,7 +39,8 @@ const possibleServerArgs = [
   {
     name: '--cluster-config',
     subArgs: ['file'],
-    description: 'path to a custom PM2 ecosystem config file (default: ecosystem.config.cjs next to server.js)',
+    description:
+      'path to a custom PM2 ecosystem config file (default: ecosystem.config.cjs next to server.js)',
     samples: [
       '--cluster start --cluster-config ./my-ecosystem.config.cjs',
       '--cluster restart --cluster-config /etc/myapp/ecosystem.config.cjs',
@@ -57,21 +59,19 @@ function parseArguments(args) {
   return args.reduce((res, arg) => {
     const argIndex = process.argv.indexOf(arg.name);
     if (argIndex > -1) {
-      const changedResult = { ...res };
-      changedResult[arg.name] = {
-        args: [],
-      };
+      res[arg.name] = { args: [] };
       if (arg.subArgs) {
         arg.subArgs.forEach((subArg, index) => {
           const subArgIndex = argIndex + index + 1;
-          if (process.argv.length <= subArgIndex
-            || argsNames.indexOf(process.argv[subArgIndex]) > -1) {
+          if (
+            process.argv.length <= subArgIndex ||
+            argsNames.indexOf(process.argv[subArgIndex]) > -1
+          ) {
             exitError(`Invalid argument ${arg.name}. Missing <${subArg}>.`, 16);
           }
-          changedResult[arg.name].args.push(process.argv[subArgIndex]);
+          res[arg.name].args.push(process.argv[subArgIndex]);
         });
       }
-      return changedResult;
     }
     return res;
   }, {});
@@ -86,7 +86,9 @@ function help(app, args) {
   args.forEach((arg) => {
     const tabIndentLength = 3;
     const tabIndent = Array(tabIndentLength).fill('\t').join('');
-    const argTabIndent = Array(tabIndentLength - Math.trunc(arg.name.length / 4)).fill('\t').join('');
+    const argTabIndent = Array(tabIndentLength - Math.trunc(arg.name.length / 4))
+      .fill('\t')
+      .join('');
     console.log(`\t\x1b[1m${arg.name}\x1b[0m${argTabIndent}${arg.description}`);
     if (arg.subArgs) {
       const subArgs = arg.subArgs.map((subArg) => `<${subArg}>`).join(' ');
@@ -130,11 +132,11 @@ if (serverArgs['--cluster']) {
     : [];
 
   const pm2Commands = {
-    start:   ['start',   ecosystemConfig, '--no-daemon', `--cwd=${cwd}`, ...configPassthrough],
-    stop:    ['stop',    'express-reverse-proxy'],
+    start: ['start', ecosystemConfig, '--no-daemon', `--cwd=${cwd}`, ...configPassthrough],
+    stop: ['stop', 'express-reverse-proxy'],
     restart: ['restart', 'express-reverse-proxy', `--cwd=${cwd}`, ...configPassthrough],
-    status:  ['status'],
-    logs:    ['logs',    'express-reverse-proxy', '--lines', '200'],
+    status: ['status'],
+    logs: ['logs', 'express-reverse-proxy', '--lines', '200'],
     monitor: ['monit'],
   };
 
@@ -157,7 +159,9 @@ if (!fs.existsSync(configFile)) {
   if (serverArgs['--config']) {
     exitError(`Configuration file not found: "${configFile}"`, 404);
   }
-  console.warn(`\x1b[33m[config] "${configFile}" not found — using defaults (port: 8000, folders: ".")\x1b[0m`);
+  console.warn(
+    `\x1b[33m[config] "${configFile}" not found — using defaults (port: 8000, folders: ".")\x1b[0m`,
+  );
   rawConfig = DEFAULT_CONFIG;
 } else {
   console.log(`[config] ${configFile}`);
@@ -219,7 +223,7 @@ function addStaticFolders(router, port, rootPath, folders) {
 }
 
 function addStaticFolder(router, port, rootPath, folder) {
-  if (typeof (folder) === 'string') {
+  if (typeof folder === 'string') {
     addStaticFolderByName(router, port, rootPath, folder);
   } else if (Array.isArray(folder)) {
     addStaticFolders(router, port, rootPath, folder);
@@ -252,7 +256,7 @@ function addProxies(router, port, localRootPath, proxies) {
 }
 
 function addProxy(router, port, localRootPath, remoteProxy) {
-  if (typeof (remoteProxy) === 'string') {
+  if (typeof remoteProxy === 'string') {
     addRemoteProxy(router, port, localRootPath, remoteProxy);
   } else if (Array.isArray(remoteProxy)) {
     addProxies(router, port, localRootPath, remoteProxy);
@@ -263,7 +267,7 @@ function addProxy(router, port, localRootPath, remoteProxy) {
 
 function unhandled(res, acceptConfig) {
   const headers = (acceptConfig.headers && Object.keys(acceptConfig.headers)) || [];
-  headers.forEach((header) => res.setHeader(header, acceptConfig.headers[header]));
+  for (const header of headers) res.setHeader(header, acceptConfig.headers[header]);
 
   let statusCode = Number.parseInt(acceptConfig.status, 10);
   if (!Number.isFinite(statusCode)) {
@@ -302,8 +306,7 @@ configsByPort.forEach((portConfigs, p) => {
 
     if (siteConfig.headers) {
       router.use((_req, res, next) => {
-        Object.keys(siteConfig.headers)
-          .forEach((h) => res.setHeader(h, siteConfig.headers[h]));
+        for (const h of Object.keys(siteConfig.headers)) res.setHeader(h, siteConfig.headers[h]);
         next();
       });
     }

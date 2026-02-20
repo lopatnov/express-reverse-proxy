@@ -6,10 +6,10 @@
  *   4. Kills all spawned processes and exits with Cypress exit code
  */
 
-import { spawn } from 'child_process';
-import http from 'http';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { spawn } from 'node:child_process';
+import http from 'node:http';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
@@ -56,7 +56,7 @@ const procs = [
 ];
 
 function killAll(code = 0) {
-  procs.forEach((p) => p.kill());
+  for (const p of procs) p.kill();
   process.exit(code);
 }
 

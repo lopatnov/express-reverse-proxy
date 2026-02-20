@@ -6,11 +6,15 @@
   "type": "module",
   "author": "lopatnov",
   "main": "server.js",
-  "exports": { ".": "./server.js" },
+  "exports": {
+    ".": "./server.js"
+  },
   "bin": {
     "express-reverse-proxy": "./server.js"
   },
-  "engines": { "node": ">=18.0.0" },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "keywords": [
     "reverse",
     "proxy",

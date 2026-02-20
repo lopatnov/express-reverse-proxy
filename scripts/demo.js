@@ -7,9 +7,9 @@
  * Usage: node scripts/demo.js [--config <path>]
  */
 
-import { spawn } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
@@ -25,10 +25,10 @@ const procs = [
 ];
 
 function shutdown() {
-  procs.forEach((p) => p.kill());
+  for (const p of procs) p.kill();
   process.exit(0);
 }
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-procs.forEach((p) => p.on('error', (err) => console.error('[demo]', err.message)));
+for (const p of procs) p.on('error', (err) => console.error('[demo]', err.message));

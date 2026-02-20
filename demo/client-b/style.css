@@ -10,13 +10,19 @@
   --blue: #58a6ff;
   --red: #f85149;
   --radius: 8px;
-  --font-mono: ui-monospace, 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", "Fira Code", monospace;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -24,8 +30,13 @@ body {
   flex-direction: column;
 }
 
-a { color: var(--blue); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
 
 code {
   font-family: var(--font-mono);
@@ -73,7 +84,10 @@ header {
   font-size: 0.85rem;
   color: var(--text-muted);
 }
-.gh-link:hover { color: var(--text); text-decoration: none; }
+.gh-link:hover {
+  color: var(--text);
+  text-decoration: none;
+}
 
 /* Main */
 main {
@@ -115,10 +129,15 @@ main {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
-.card:hover { background: var(--bg-card-hover); border-color: var(--accent-dim); }
+.card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-dim);
+}
 
 .card-header {
   display: flex;
@@ -135,9 +154,16 @@ main {
   letter-spacing: 0.05em;
 }
 
-.method.get { background: rgba(88, 166, 255, 0.2); color: var(--accent); }
+.method.get {
+  background: rgba(88, 166, 255, 0.2);
+  color: var(--accent);
+}
 
-.card-desc { font-size: 0.85rem; color: var(--text-muted); flex: 1; }
+.card-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  flex: 1;
+}
 
 /* Buttons */
 .btn {
@@ -153,8 +179,12 @@ main {
   transition: background 0.15s;
 }
 
-.btn:hover { background: var(--accent); }
-.btn:active { transform: scale(0.98); }
+.btn:hover {
+  background: var(--accent);
+}
+.btn:active {
+  transform: scale(0.98);
+}
 
 .btn-clear {
   background: none;
@@ -164,9 +194,14 @@ main {
   padding: 4px 10px;
   font-size: 0.8rem;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
-.btn-clear:hover { color: var(--text); border-color: var(--text-muted); }
+.btn-clear:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
 
 /* Response */
 .response-section {
@@ -193,8 +228,16 @@ main {
   border-radius: 20px;
   display: none;
 }
-.status-badge.ok  { display: inline; background: rgba(88, 166, 255, 0.2); color: var(--accent); }
-.status-badge.err { display: inline; background: rgba(248, 81, 73, 0.2); color: var(--red); }
+.status-badge.ok {
+  display: inline;
+  background: rgba(88, 166, 255, 0.2);
+  color: var(--accent);
+}
+.status-badge.err {
+  display: inline;
+  background: rgba(248, 81, 73, 0.2);
+  color: var(--red);
+}
 
 #response-output {
   font-family: var(--font-mono);
@@ -207,10 +250,15 @@ main {
   word-break: break-word;
 }
 
-.placeholder { color: var(--text-muted); }
+.placeholder {
+  color: var(--text-muted);
+}
 
 /* Info / flow */
-.info h2 { font-size: 1.1rem; margin-bottom: 16px; }
+.info h2 {
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+}
 
 .flow {
   display: flex;
@@ -236,9 +284,16 @@ main {
   font-family: var(--font-mono);
 }
 
-.flow-arrow { color: var(--text-muted); font-size: 1.2rem; }
+.flow-arrow {
+  color: var(--text-muted);
+  font-size: 1.2rem;
+}
 
-.info p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; }
+.info p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
 
 /* Footer */
 footer {
@@ -252,8 +307,17 @@ footer {
 }
 
 @media (max-width: 600px) {
-  .cards { grid-template-columns: 1fr; }
-  .flow { flex-direction: column; }
-  .flow-arrow { transform: rotate(90deg); }
-  footer { flex-direction: column; gap: 8px; }
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  .flow {
+    flex-direction: column;
+  }
+  .flow-arrow {
+    transform: rotate(90deg);
+  }
+  footer {
+    flex-direction: column;
+    gap: 8px;
+  }
 }

@@ -56,7 +56,7 @@ describe('Static file serving', () => {
       headers: { Accept: 'text/html' },
     }).then((res) => {
       expect(res.status).to.eq(307);
-      expect(res.headers['location']).to.eq('/');
+      expect(res.headers.location).to.eq('/');
     });
   });
 

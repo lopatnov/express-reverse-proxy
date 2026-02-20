@@ -8,7 +8,7 @@ const users = [
   { id: 3, name: 'Carol', email: 'carol@example.com', role: 'viewer' },
 ];
 
-app.get('/users', (req, res) => {
+app.get('/users', (_req, res) => {
   res.json(users);
 });
 
