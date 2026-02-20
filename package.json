@@ -1,7 +1,7 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "Node.js CLI tool to serve static front-end files with a reverse proxy for back-end APIs",
   "type": "module",
   "author": "lopatnov",
@@ -71,7 +71,9 @@
     "compression": "^1.7.5",
     "cors": "^2.8.5",
     "express": "^5.2.1",
+    "express-basic-auth": "^1.2.1",
     "express-http-proxy": "^2.1.2",
+    "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "morgan": "^1.10.1",
     "pm2": "^6.0.14",

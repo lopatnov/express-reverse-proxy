@@ -1,5 +1,14 @@
 # Changelog
 
+## [5.0.0] — 2026-02-20
+
+### New features
+
+- **`rateLimit`**: set `"rateLimit": { "windowMs": 60000, "limit": 100 }` to limit requests per client per time window via `express-rate-limit`. Responds with `429` when exceeded.
+- **`basicAuth`**: set `"basicAuth": { "users": { "admin": "secret" } }` to protect a site with HTTP Basic Authentication via `express-basic-auth`.
+
+---
+
 ## [4.0.0] — 2026-02-20
 
 ### New features

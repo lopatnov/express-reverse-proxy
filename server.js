@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
+import basicAuth from 'express-basic-auth';
 import proxy from 'express-http-proxy';
+import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import responseTime from 'response-time';
@@ -388,6 +390,16 @@ configsByPort.forEach((portConfigs, p) => {
 
     if (siteConfig.favicon) {
       router.use(favicon(path.resolve(configDir, siteConfig.favicon)));
+    }
+
+    if (siteConfig.rateLimit) {
+      const opts = typeof siteConfig.rateLimit === 'object' ? siteConfig.rateLimit : {};
+      router.use(rateLimit(opts));
+    }
+
+    if (siteConfig.basicAuth) {
+      const opts = typeof siteConfig.basicAuth === 'object' ? siteConfig.basicAuth : {};
+      router.use(basicAuth(opts));
     }
 
     if (siteConfig.headers) {

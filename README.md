@@ -27,6 +27,8 @@
   - [cors](#cors)
   - [favicon](#favicon)
   - [responseTime](#responsetime)
+  - [rateLimit](#ratelimit)
+  - [basicAuth](#basicauth)
   - [headers](#headers)
   - [folders](#folders)
   - [proxy](#proxy)
@@ -581,6 +583,53 @@ With custom precision (see [response-time docs](https://github.com/expressjs/res
 }
 ```
 
+### rateLimit
+
+Limit the number of requests a client can make in a time window. Responds with `429 Too Many Requests` when the limit is exceeded. Useful when running without a dedicated reverse proxy.
+
+```json
+{
+  "port": 8080,
+  "rateLimit": { "windowMs": 60000, "limit": 100 },
+  "folders": "www"
+}
+```
+
+| Option      | Default  | Description                                      |
+| ----------- | -------- | ------------------------------------------------ |
+| `windowMs`  | `60000`  | Time window in milliseconds                      |
+| `limit`     | `5`      | Maximum requests per client per window           |
+| `message`   | built-in | Response body when limit is exceeded             |
+
+See [express-rate-limit docs](https://express-rate-limit.mintlify.app/reference/configuration) for all options.
+
+> Rate limiting is applied per-site and per IP address. In production behind Nginx or Caddy, configure rate limiting there instead — it runs before Node.js and is more efficient.
+
+### basicAuth
+
+Protect the site with HTTP Basic Authentication. All requests must include valid credentials or the server responds with `401 Unauthorized`.
+
+```json
+{
+  "port": 8080,
+  "basicAuth": {
+    "users": { "admin": "s3cr3t" },
+    "challenge": true
+  },
+  "folders": "www"
+}
+```
+
+| Option      | Default | Description                                                  |
+| ----------- | ------- | ------------------------------------------------------------ |
+| `users`     | —       | Object mapping username → password *(required)*              |
+| `challenge` | `false` | Send `WWW-Authenticate` header to trigger browser login dialog |
+| `realm`     | —       | Realm string shown in the browser login dialog               |
+
+See [express-basic-auth docs](https://github.com/LionC/express-basic-auth#options) for all options.
+
+> Passwords are compared in plain text. Do not use Basic Auth over plain HTTP in production — always combine with `ssl` or put behind a TLS-terminating proxy.
+
 ---
 
 ## Configuration Recipes
@@ -951,6 +1000,8 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [cors](https://github.com/expressjs/cors) — CORS headers and preflight handling
 - [serve-favicon](https://github.com/expressjs/serve-favicon) — efficient favicon serving
 - [response-time](https://github.com/expressjs/response-time) — X-Response-Time header
+- [express-rate-limit](https://express-rate-limit.mintlify.app/) — request rate limiting
+- [express-basic-auth](https://github.com/LionC/express-basic-auth) — HTTP Basic Authentication
 - [PM2](https://pm2.keymetrics.io/) — production process manager with clustering
 - [Biome](https://biomejs.dev/) — fast linter and formatter (Rust-based)
 - [Cypress](https://www.cypress.io/) — E2E testing framework
