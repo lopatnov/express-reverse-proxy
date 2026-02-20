@@ -627,6 +627,56 @@ express-reverse-proxy --cluster status
 express-reverse-proxy --cluster stop
 ```
 
+### Behind a reverse proxy
+
+For production deployments it is common to place a dedicated reverse proxy in front of `express-reverse-proxy` to handle TLS termination, HTTP/2, gzip compression, and rate limiting. In this setup the Node.js server listens on a local port over plain HTTP, while the outer proxy terminates HTTPS connections from the internet:
+
+```
+Internet (HTTPS / HTTP/2)
+        ↓
+  Nginx or Caddy          — TLS, HTTP/2, gzip, rate limiting
+        ↓ HTTP/1.1 (localhost)
+  express-reverse-proxy   — PM2 cluster, routing, static files, API proxy
+        ↓
+  Backend API servers
+```
+
+**No `ssl` config needed** in `server-config.json` when the outer proxy handles TLS.
+
+#### Nginx
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    location / {
+        proxy_pass         http://127.0.0.1:8080;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Free certificates can be obtained with [Certbot](https://certbot.eff.org/): `certbot --nginx -d example.com`.
+
+#### Caddy
+
+[Caddy](https://caddyserver.com/) provisions and renews Let's Encrypt certificates automatically — no extra tooling needed:
+
+```
+example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Start with `caddy run --config Caddyfile`.
+
 ---
 
 ## Testing
