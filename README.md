@@ -18,6 +18,10 @@
 - [Demo](#demo)
 - [How It Works](#how-it-works)
 - [CLI Options](#cli-options)
+  - [--config](#--config)
+  - [--init](#--init)
+  - [--cluster](#--cluster)
+  - [--cluster-config](#--cluster-config)
 - [Configuration](#configuration)
   - [port](#port)
   - [logging](#logging)
@@ -27,13 +31,31 @@
   - [cors](#cors)
   - [favicon](#favicon)
   - [responseTime](#responsetime)
+  - [rateLimit](#ratelimit)
+  - [basicAuth](#basicauth)
+  - [healthCheck](#healthcheck)
+  - [cgi](#cgi)
+  - [upload](#upload)
   - [headers](#headers)
+  - [redirects](#redirects)
   - [folders](#folders)
   - [proxy](#proxy)
   - [unhandled](#unhandled)
   - [host](#host)
   - [ssl](#ssl)
 - [Configuration Recipes](#configuration-recipes)
+  - [Static files + proxy fallback](#static-files-first-then-fall-back-to-back-end)
+  - [Static files + API on a specific path](#static-files--api-on-a-specific-path)
+  - [Hot reload dev server](#hot-reload-dev-server)
+  - [HTTPS with automatic HTTP redirect](#https-with-automatic-http-redirect)
+  - [HTTPS with a self-signed certificate](#https-with-a-self-signed-certificate-local-dev)
+  - [Production hardening](#production-hardening-helmet--cors--compression)
+  - [Protected admin area](#protected-admin-area)
+  - [URL migration](#url-migration-permanent-redirects)
+  - [Load-balanced API proxy](#load-balanced-api-proxy)
+  - [File upload server](#file-upload-server)
+  - [Health check for Docker / Kubernetes](#health-check-for-docker--kubernetes)
+  - [CORS headers + rich error responses](#cors-headers--rich-error-responses)
 - [Docker & PM2](#docker--pm2)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
@@ -67,7 +89,13 @@ npx @lopatnov/express-reverse-proxy
 
 ## Quick Start
 
-1. Create a `server-config.json` in your project root:
+1. Generate a `server-config.json` interactively (or create it manually):
+
+```shell
+express-reverse-proxy --init
+```
+
+Or create it manually:
 
 ```json
 {
@@ -139,24 +167,48 @@ Browser
 
 ## How It Works
 
-Every incoming request is processed in order:
+Every incoming request passes through the middleware chain in this order:
 
 ```
 Request
   │
-  ├─▶  Custom headers applied (if configured)
+  ├─▶  Logging (morgan)                     — log to console or file
+  ├─▶  responseTime                          — measure and record latency
+  ├─▶  cors                                  — CORS headers + preflight OPTIONS
+  ├─▶  compression                           — gzip/deflate response body
+  ├─▶  helmet                                — security HTTP headers
+  ├─▶  favicon                               — serve /favicon.ico from memory
+  │
+  ├─▶  healthCheck                           — GET /__health__ → {status, uptime}
+  │       └─▶  Path matches → respond immediately (bypasses auth below)
+  │
+  ├─▶  rateLimit                             — 429 if client over limit
+  ├─▶  basicAuth                             — 401 if credentials missing/wrong
+  │
+  ├─▶  Custom headers applied (headers)
+  │
+  ├─▶  Redirect rules checked (redirects)
+  │       └─▶  Path matches → 301/302 redirect
   │
   ├─▶  Static files checked (folders, in order)
   │       └─▶  File found → serve it
   │
+  ├─▶  CGI scripts checked (cgi)
+  │       └─▶  Path + extension matches → execute script → stream response
+  │
+  ├─▶  File upload handler (upload)
+  │       └─▶  POST path matches → save files, return JSON
+  │           GET path matches → serve uploaded file
+  │
   ├─▶  Reverse proxy rules checked (proxy)
   │       └─▶  Path matches → forward to back-end → return response
+  │               (round-robin if multiple targets configured)
   │
   └─▶  No match → unhandled handler (by Accept header)
-            └─▶  Return status + body or redirect
+            └─▶  Return status + body
 ```
 
-Static files always take priority over proxy rules. Proxies are checked only when no file matches.
+Options that are not configured are skipped entirely. Static files always take priority over proxy rules.
 
 ---
 
@@ -175,14 +227,51 @@ lerp [options]
 | ------------------------- | ----------------------------------------------------------------------------------------------- |
 | `--help`                  | Print help and exit                                                                             |
 | `--config <file>`         | Path to the JSON configuration file. Default: `server-config.json`                              |
+| `--init`                  | Interactively create a `server-config.json` in the current directory                            |
 | `--cluster [action]`      | Manage the PM2 cluster. Action defaults to `start` when omitted                                 |
 | `--cluster-config <file>` | Path to a custom PM2 ecosystem config file. Default: `ecosystem.config.cjs` next to `server.js` |
 
-### --cluster actions
+### --config
+
+Specify the path to the configuration file. Accepts a file path or a directory (in which case `server-config.json` inside that directory is used).
+
+```shell
+express-reverse-proxy --config ./configs/prod.json
+express-reverse-proxy --config ./configs/
+```
+
+Default: `server-config.json` in the current working directory.
+
+If the file is not found and `--config` was explicitly provided, the server exits with an error. If no `--config` is given and the default file is missing, the server starts with built-in defaults (`port: 8000`, `folders: "."`) and prints a warning.
+
+### --init
+
+Interactively creates a `server-config.json` in the current working directory. Asks for port, static folder, optional proxy target, and hot reload preference.
+
+```shell
+express-reverse-proxy --init
+```
+
+Example session:
+
+```
+Port [8000]: 8080
+Static folder [.]: www
+Proxy path (e.g. /api) [skip]: /api
+Proxy target for /api: http://localhost:4000
+Hot reload? [y/N]: y
+[init] Created /your/project/server-config.json
+```
+
+If `server-config.json` already exists, the command asks before overwriting.
+
+### --cluster
+
+Manage the PM2 process cluster. Action defaults to `start` when omitted.
 
 | Action    | Description                                            |
 | --------- | ------------------------------------------------------ |
-| `start`   | Start the PM2 cluster (default when action is omitted) |
+| `start`   | Start the cluster (default when action is omitted)     |
 | `stop`    | Stop all cluster instances                             |
 | `restart` | Restart all cluster instances                          |
 | `status`  | Show PM2 process status table                          |
@@ -190,7 +279,7 @@ lerp [options]
 | `monitor` | Open the PM2 real-time monitor                         |
 
 ```shell
-express-reverse-proxy --cluster
+express-reverse-proxy --cluster              # same as --cluster start
 express-reverse-proxy --cluster start
 express-reverse-proxy --cluster stop
 express-reverse-proxy --cluster restart
@@ -199,24 +288,40 @@ express-reverse-proxy --cluster logs
 express-reverse-proxy --cluster monitor
 ```
 
-Pass a custom config to cluster workers with `--config`:
+Pass `--config` to forward a custom config path to all cluster workers:
 
 ```shell
 express-reverse-proxy --cluster start --config ./configs/prod.json
 ```
 
-Use a custom PM2 ecosystem file with `--cluster-config`:
+### --cluster-config
+
+Override the PM2 ecosystem config file used to start the cluster. Default: `ecosystem.config.cjs` in the same directory as `server.js`.
 
 ```shell
 express-reverse-proxy --cluster start --cluster-config ./my-ecosystem.config.cjs
 express-reverse-proxy --cluster restart --cluster-config /etc/myapp/ecosystem.config.cjs
 ```
 
+Useful when you need custom PM2 settings such as a different number of instances, environment variables, or log file paths. See [PM2 ecosystem documentation](https://pm2.keymetrics.io/docs/usage/application-declaration/) for all options.
+
 ---
 
 ## Configuration
 
 All configuration lives in a single JSON file (default `server-config.json`).
+
+### IDE autocomplete (JSON Schema)
+
+Add a `$schema` reference to your config file to get property autocomplete, descriptions, and type checking in VS Code and other editors:
+
+```json
+{
+  "$schema": "https://unpkg.com/@lopatnov/express-reverse-proxy/server-config.schema.json",
+  "port": 8080,
+  "folders": "www"
+}
+```
 
 ### Environment variables
 
@@ -237,7 +342,7 @@ The port the server listens on. Defaults to `8000`. Can also be set via the `POR
 
 ### logging
 
-Controls HTTP request logging (Morgan). Enabled by default. Set to `false` to silence per-request log lines — useful in production behind another proxy, or to keep console output clean.
+Controls HTTP request logging (Morgan). Enabled by default (`dev` format). Set to `false` to silence per-request log lines — useful in production behind another proxy, or to keep console output clean.
 
 ```json
 {
@@ -246,6 +351,23 @@ Controls HTTP request logging (Morgan). Enabled by default. Set to `false` to si
   "folders": "www"
 }
 ```
+
+**Object form** — write logs to a file and/or choose a different format:
+
+```json
+{
+  "logging": { "format": "combined", "file": "./logs/access.log" }
+}
+```
+
+| Option   | Default      | Description                                                    |
+| -------- | ------------ | -------------------------------------------------------------- |
+| `format` | `"combined"` | Morgan format: `combined`, `common`, `dev`, `short`, or `tiny` |
+| `file`   | none         | Path to log file (relative to config file). Appended if exists |
+
+When `file` is set, logs are written to the file only (not to the console).
+
+> Logging is applied per-site, so each virtual host can have its own format and log file.
 
 ### hotReload
 
@@ -295,6 +417,42 @@ Add headers to every response — useful for CORS in development.
   }
 }
 ```
+
+### redirects
+
+Permanently or temporarily redirect URL paths to new destinations. Redirects are checked before static files and proxy rules.
+
+**Object form** — map source paths to destinations:
+
+```json
+{
+  "redirects": {
+    "/old-path": "/new-path",
+    "/legacy": "https://new.example.com",
+    "/temp": { "to": "/temporary-destination", "status": 302 }
+  }
+}
+```
+
+**Array form** — explicit entries with `from`, `to`, and optional `status`:
+
+```json
+{
+  "redirects": [
+    { "from": "/old", "to": "/new" },
+    { "from": "/moved", "to": "https://example.com", "status": 301 },
+    { "from": "/temp", "to": "/somewhere", "status": 302 }
+  ]
+}
+```
+
+| Field    | Default | Description                                              |
+| -------- | ------- | -------------------------------------------------------- |
+| `from`   | —       | Source URL path *(array form only, required)*            |
+| `to`     | —       | Destination path or full URL *(required)*                |
+| `status` | `301`   | HTTP redirect status: `301`, `302`, `307`, or `308`      |
+
+> `301` — Moved Permanently. `302` — Found (temporary). Use `301` for permanent URL changes and `302` for temporary ones.
 
 ### folders
 
@@ -374,6 +532,18 @@ Forward requests to a back-end server. Supports three forms:
   ]
 }
 ```
+
+**Load balancing** — pass an array of targets for a path to distribute requests in round-robin:
+
+```json
+{
+  "proxy": {
+    "/api": ["http://backend1:3000", "http://backend2:3000", "http://backend3:3000"]
+  }
+}
+```
+
+Requests to `/api` are forwarded to the backends in turn: `backend1`, `backend2`, `backend3`, `backend1`, …
 
 ### unhandled
 
@@ -455,11 +625,12 @@ To use multi-site mode, make the config file an **array** instead of an object. 
 
 Enable HTTPS on a port by adding an `ssl` object to any site config for that port. All sites sharing the same port use the same certificate.
 
-| Field  | Type     | Description                                              |
-| ------ | -------- | -------------------------------------------------------- |
-| `key`  | `string` | Path to the private key file (PEM format)                |
-| `cert` | `string` | Path to the certificate file (PEM format)                |
-| `ca`   | `string` | *(optional)* Path to the CA bundle for client validation |
+| Field      | Type      | Description                                              |
+| ---------- | --------- | -------------------------------------------------------- |
+| `key`      | `string`  | Path to the private key file (PEM format)                |
+| `cert`     | `string`  | Path to the certificate file (PEM format)                |
+| `ca`       | `string`  | *(optional)* Path to the CA bundle for client validation |
+| `redirect` | `integer` | *(optional)* HTTP port to redirect (301) to HTTPS        |
 
 Paths are resolved **relative to the config file**, not the current working directory.
 
@@ -476,6 +647,22 @@ Paths are resolved **relative to the config file**, not the current working dire
   }
 }
 ```
+
+**Automatic HTTP → HTTPS redirect** — set `redirect` to the HTTP port to also listen on plain HTTP and redirect all traffic to HTTPS:
+
+```json
+{
+  "port": 443,
+  "ssl": {
+    "key": "./certs/key.pem",
+    "cert": "./certs/cert.pem",
+    "redirect": 80
+  },
+  "folders": "./public"
+}
+```
+
+This starts an HTTPS server on port `443` and a tiny redirect-only HTTP server on port `80`. All `http://` requests are permanently redirected (301) to `https://`.
 
 > All site configs on the same port must either all have `ssl` or none — mixing is a startup error.
 
@@ -581,6 +768,243 @@ With custom precision (see [response-time docs](https://github.com/expressjs/res
 }
 ```
 
+### rateLimit
+
+Limit the number of requests a client can make in a time window. Responds with `429 Too Many Requests` when the limit is exceeded. Useful when running without a dedicated reverse proxy.
+
+```json
+{
+  "port": 8080,
+  "rateLimit": { "windowMs": 60000, "limit": 100 },
+  "folders": "www"
+}
+```
+
+| Option      | Default  | Description                                      |
+| ----------- | -------- | ------------------------------------------------ |
+| `windowMs`  | `60000`  | Time window in milliseconds                      |
+| `limit`     | `5`      | Maximum requests per client per window           |
+| `message`   | built-in | Response body when limit is exceeded             |
+
+See [express-rate-limit docs](https://express-rate-limit.mintlify.app/reference/configuration) for all options.
+
+> Rate limiting is applied per-site and per IP address. In production behind Nginx or Caddy, configure rate limiting there instead — it runs before Node.js and is more efficient.
+
+### basicAuth
+
+Protect the site with HTTP Basic Authentication. All requests must include valid credentials or the server responds with `401 Unauthorized`.
+
+```json
+{
+  "port": 8080,
+  "basicAuth": {
+    "users": { "admin": "s3cr3t" },
+    "challenge": true
+  },
+  "folders": "www"
+}
+```
+
+| Option      | Default | Description                                                  |
+| ----------- | ------- | ------------------------------------------------------------ |
+| `users`     | —       | Object mapping username → password *(required)*              |
+| `challenge` | `false` | Send `WWW-Authenticate` header to trigger browser login dialog |
+| `realm`     | —       | Realm string shown in the browser login dialog               |
+
+See [express-basic-auth docs](https://github.com/LionC/express-basic-auth#options) for all options.
+
+> Passwords are compared in plain text. Do not use Basic Auth over plain HTTP in production — always combine with `ssl` or put behind a TLS-terminating proxy.
+
+### healthCheck
+
+Expose a lightweight health check endpoint. Returns a JSON response with server status, uptime, and current timestamp. Useful for load balancers, monitoring systems, and container health checks.
+
+```json
+{
+  "port": 8080,
+  "healthCheck": true,
+  "folders": "www"
+}
+```
+
+Default endpoint: `GET /__health__`
+
+```json
+{ "status": "ok", "uptime": 42.3, "timestamp": "2026-01-01T12:00:00.000Z" }
+```
+
+Custom path:
+
+```json
+{
+  "healthCheck": { "path": "/health" }
+}
+```
+
+| Option | Default        | Description                      |
+| ------ | -------------- | -------------------------------- |
+| `path` | `"/__health__"` | URL path of the health endpoint |
+
+> The health check endpoint is placed before rate limiting and basic auth — it is always publicly accessible regardless of other authentication settings.
+
+### cgi
+
+Execute server-side scripts using the CGI (Common Gateway Interface) protocol. When a request matches the configured URL prefix and file extension, the script is spawned as a child process — HTTP headers become environment variables, the request body is piped to stdin, and the script's stdout is streamed back as the HTTP response.
+
+```json
+{
+  "port": 8080,
+  "cgi": {
+    "path": "/cgi-bin",
+    "dir": "./cgi-bin",
+    "extensions": [".cgi", ".pl", ".py", ".sh"],
+    "interpreters": {
+      ".py": "python3",
+      ".sh": "sh",
+      ".pl": "perl"
+    }
+  }
+}
+```
+
+| Option         | Default                               | Description                                                          |
+| -------------- | ------------------------------------- | -------------------------------------------------------------------- |
+| `path`         | `"/cgi-bin"`                          | URL prefix that triggers CGI dispatch                                |
+| `dir`          | `"./cgi-bin"`                         | Local directory containing scripts (resolved relative to config file)|
+| `extensions`   | `[".cgi", ".pl", ".py", ".sh"]`       | File extensions treated as executable CGI scripts                    |
+| `interpreters` | `{}`                                  | Map of file extension → interpreter command                          |
+
+Shorthand — point directly to the script directory (all defaults apply):
+
+```json
+{
+  "cgi": "./cgi-bin"
+}
+```
+
+CGI environment variables set for every request:
+
+| Variable          | Value                                                    |
+| ----------------- | -------------------------------------------------------- |
+| `REQUEST_METHOD`  | HTTP method (`GET`, `POST`, …)                           |
+| `QUERY_STRING`    | URL query string (without `?`)                           |
+| `CONTENT_TYPE`    | `Content-Type` request header                            |
+| `CONTENT_LENGTH`  | `Content-Length` request header                          |
+| `SCRIPT_FILENAME` | Absolute path to the script file                         |
+| `SCRIPT_NAME`     | URL path to the script (e.g. `/cgi-bin/hello.py`)        |
+| `SERVER_NAME`     | Requested hostname                                       |
+| `SERVER_PORT`     | Server listen port                                       |
+| `REMOTE_ADDR`     | Client IP address                                        |
+| `HTTP_*`          | All request headers (e.g. `HTTP_ACCEPT`, `HTTP_HOST`)    |
+
+A minimal Python example (`cgi-bin/hello.py`):
+
+```python
+#!/usr/bin/env python3
+print("Content-Type: text/plain")
+print("Status: 200 OK")
+print()
+print("Hello from CGI!")
+```
+
+> **Unix/macOS note:** Scripts must be executable: `chmod +x cgi-bin/hello.py`. Alternatively, configure an `interpreters` entry for the extension — no executable bit required when an interpreter is specified.
+
+> **Windows note:** Scripts are not directly executable on Windows. You must configure `interpreters` for every extension you use; otherwise the request returns a `500` spawn error.
+
+**Array form** — multiple independent CGI directories on the same site:
+
+```json
+{
+  "cgi": [
+    {
+      "path": "/py-scripts",
+      "dir": "./py-scripts",
+      "extensions": [".py"],
+      "interpreters": { ".py": "python3" }
+    },
+    {
+      "path": "/node-scripts",
+      "dir": "./node-scripts",
+      "extensions": [".js"],
+      "interpreters": { ".js": "node" }
+    }
+  ]
+}
+```
+
+Each entry in the array sets up an independent CGI mount point with its own directory, URL prefix, extensions, and interpreters.
+
+### upload
+
+Accept file uploads via `multipart/form-data` and save them to a local directory. Uploaded files can be retrieved immediately via `GET`.
+
+```json
+{
+  "port": 8080,
+  "upload": {
+    "path": "/upload",
+    "dir": "./uploads",
+    "maxFileSize": 10485760,
+    "maxFiles": 10,
+    "allowedTypes": ["image/jpeg", "image/png", "application/pdf"],
+    "fieldName": "file"
+  }
+}
+```
+
+Shorthand — directory only (all defaults apply):
+
+```json
+{
+  "upload": "./uploads"
+}
+```
+
+| Option          | Default        | Description                                                              |
+| --------------- | -------------- | ------------------------------------------------------------------------ |
+| `path`          | `"/upload"`    | URL prefix for the upload endpoint                                       |
+| `dir`           | `"./uploads"`  | Save directory (resolved relative to the config file)                    |
+| `maxFileSize`   | none           | Maximum file size in bytes; responds with `413` when exceeded            |
+| `maxFiles`      | none           | Maximum number of files per request; responds with `400` when exceeded   |
+| `allowedTypes`  | none           | MIME type whitelist; responds with `400` when the type is not in the list|
+| `fieldName`     | any field      | Accept only files uploaded in this specific form field                   |
+
+**Array form** — multiple upload endpoints on the same site:
+
+```json
+{
+  "upload": [
+    { "path": "/photos", "dir": "./photos", "allowedTypes": ["image/jpeg", "image/png"] },
+    { "path": "/docs",   "dir": "./documents", "allowedTypes": ["application/pdf"], "maxFileSize": 5242880 }
+  ]
+}
+```
+
+**HTTP interface:**
+
+| Method | URL              | Description                              |
+| ------ | ---------------- | ---------------------------------------- |
+| `POST` | `<path>`         | Upload files via `multipart/form-data`   |
+| `GET`  | `<path>/<name>`  | Retrieve a previously uploaded file      |
+
+`POST` success response (`200`):
+
+```json
+{
+  "files": [
+    { "file": "photo-1700000000000-123456789.jpg", "size": 45678, "originalName": "photo.jpg" }
+  ]
+}
+```
+
+Upload with curl:
+
+```shell
+curl -F "file=@photo.jpg" http://localhost:8080/upload
+```
+
+> The upload directory is created automatically at startup if it does not exist. Saved filenames include a timestamp and random suffix to avoid collisions.
+
 ---
 
 ## Configuration Recipes
@@ -617,6 +1041,65 @@ Only `/api/*` requests go to the back-end; everything else stays local.
 - `GET /index.html` → served from `./www/index.html`
 - `GET /api/users` → proxied to `http://localhost:4000/users`
 - `GET /missing` → 404 Not Found
+
+### Hot reload dev server
+
+Local development setup: serve a front-end build folder, proxy API requests to a local back-end, and automatically reload the browser on file changes.
+
+```json
+{
+  "port": 3000,
+  "hotReload": true,
+  "folders": "./dist",
+  "proxy": {
+    "/api": "http://localhost:4000"
+  }
+}
+```
+
+Add the client script to your HTML (or import it in your bundler entry point):
+
+```html
+<script src="/__hot-reload__/client.js"></script>
+```
+
+The browser reconnects automatically after server restarts.
+
+---
+
+### HTTPS with automatic HTTP redirect
+
+Serve the site over HTTPS and redirect all plain-HTTP traffic (port 80) to HTTPS (port 443) with a permanent 301 redirect.
+
+```shell
+mkdir certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem \
+  -days 365 -nodes -subj "/CN=example.com"
+```
+
+```json
+{
+  "port": 443,
+  "ssl": {
+    "key": "./certs/key.pem",
+    "cert": "./certs/cert.pem",
+    "redirect": 80
+  },
+  "folders": "./public",
+  "proxy": {
+    "/api": "http://localhost:4000"
+  }
+}
+```
+
+The server logs two listeners on startup:
+
+```
+[listen] https://localhost:443
+[listen] http redirect :80 → https :443
+```
+
+---
 
 ### HTTPS with a self-signed certificate (local dev)
 
@@ -665,6 +1148,160 @@ Enable security headers, CORS, and response compression in one config:
     "/api": "http://localhost:4000"
   }
 }
+```
+
+---
+
+### Protected admin area
+
+Protect a site with rate limiting and HTTP Basic Auth. Useful for internal tools or staging environments.
+
+```json
+{
+  "port": 8080,
+  "rateLimit": { "windowMs": 60000, "limit": 30 },
+  "basicAuth": {
+    "users": { "admin": "s3cr3t", "viewer": "readonly" },
+    "challenge": true
+  },
+  "folders": "./admin",
+  "proxy": {
+    "/api": "http://localhost:4000"
+  }
+}
+```
+
+- Requests without valid credentials → `401 Unauthorized` (browser shows login dialog)
+- More than 30 requests per minute from the same IP → `429 Too Many Requests`
+
+> Always combine Basic Auth with `ssl` in production — credentials are transmitted in plain text otherwise.
+
+---
+
+### URL migration (permanent redirects)
+
+Redirect old URLs to new ones after a site restructure, without breaking existing links or SEO rankings.
+
+```json
+{
+  "port": 8080,
+  "redirects": [
+    { "from": "/about.html",    "to": "/about",       "status": 301 },
+    { "from": "/products.html", "to": "/products",    "status": 301 },
+    { "from": "/blog/:slug",    "to": "/posts/:slug", "status": 301 }
+  ],
+  "folders": "./public"
+}
+```
+
+Or as an object map for simple path-to-path redirects:
+
+```json
+{
+  "redirects": {
+    "/old-home":  "/",
+    "/old-about": "/about",
+    "/legacy-api": "https://api.example.com"
+  }
+}
+```
+
+---
+
+### Load-balanced API proxy
+
+Distribute API traffic across multiple back-end instances using round-robin load balancing. No external load balancer required.
+
+```json
+{
+  "port": 8080,
+  "folders": "./public",
+  "proxy": {
+    "/api": [
+      "http://backend-1:3000",
+      "http://backend-2:3000",
+      "http://backend-3:3000"
+    ]
+  }
+}
+```
+
+Requests to `/api/*` are forwarded to the three back-ends in turn. If a back-end is down, its slot in the rotation still receives requests — add a health check at the application level or use a dedicated load balancer for automatic failover.
+
+---
+
+### File upload server
+
+Accept file uploads from a web form or API client and serve them back over HTTP.
+
+```json
+{
+  "port": 8080,
+  "upload": [
+    {
+      "path": "/photos",
+      "dir": "./storage/photos",
+      "maxFileSize": 5242880,
+      "allowedTypes": ["image/jpeg", "image/png", "image/webp"]
+    },
+    {
+      "path": "/documents",
+      "dir": "./storage/docs",
+      "maxFileSize": 10485760,
+      "allowedTypes": ["application/pdf"]
+    }
+  ]
+}
+```
+
+Upload a photo:
+
+```shell
+curl -F "file=@photo.jpg" http://localhost:8080/photos
+# {"files":[{"file":"photo-1700000000000-123456789.jpg","size":45678,"originalName":"photo.jpg"}]}
+```
+
+Retrieve it:
+
+```shell
+curl http://localhost:8080/photos/photo-1700000000000-123456789.jpg
+```
+
+---
+
+### Health check for Docker / Kubernetes
+
+Add a health check endpoint and write access logs to a file — a common pattern for containerized deployments.
+
+```json
+{
+  "port": 8080,
+  "healthCheck": { "path": "/health" },
+  "logging": { "format": "combined", "file": "/var/log/app/access.log" },
+  "compression": true,
+  "folders": "./public",
+  "proxy": {
+    "/api": "http://backend:3000"
+  }
+}
+```
+
+Docker `HEALTHCHECK`:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD curl -f http://localhost:8080/health || exit 1
+```
+
+Kubernetes liveness/readiness probe:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 30
 ```
 
 ---
@@ -951,6 +1588,10 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [cors](https://github.com/expressjs/cors) — CORS headers and preflight handling
 - [serve-favicon](https://github.com/expressjs/serve-favicon) — efficient favicon serving
 - [response-time](https://github.com/expressjs/response-time) — X-Response-Time header
+- [express-rate-limit](https://express-rate-limit.mintlify.app/) — request rate limiting
+- [express-basic-auth](https://github.com/LionC/express-basic-auth) — HTTP Basic Authentication
+- CGI support — built on Node.js `child_process.spawn` (no external dependency)
+- [multer](https://github.com/expressjs/multer) — multipart/form-data file upload handling
 - [PM2](https://pm2.keymetrics.io/) — production process manager with clustering
 - [Biome](https://biomejs.dev/) — fast linter and formatter (Rust-based)
 - [Cypress](https://www.cypress.io/) — E2E testing framework

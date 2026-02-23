@@ -40,7 +40,7 @@ function waitForUrl(url, { timeout = 30_000, interval = 300 } = {}) {
 }
 
 function spawnProc(cmd, args, label, opts = {}) {
-  const p = spawn(cmd, args, { cwd: root, stdio: 'inherit', shell: true, ...opts });
+  const p = spawn(cmd, args, { cwd: root, stdio: 'inherit', ...opts });
   p.on('error', (err) => console.error(`[${label}]`, err.message));
   return p;
 }
@@ -49,6 +49,8 @@ function spawnProc(cmd, args, label, opts = {}) {
 
 console.log('[test] Starting demo servers…');
 
+// Spawn node processes WITHOUT shell:true so p.pid is the actual node PID
+// and p.kill() terminates it directly (avoids orphaned processes on Windows).
 const procs = [
   spawnProc('node', ['demo/server-a.js'], 'server-a'),
   spawnProc('node', ['demo/server-b.js'], 'server-b'),
@@ -85,8 +87,9 @@ try {
 
 // ELECTRON_RUN_AS_NODE (set by bash/git-bash) causes Cypress.exe to crash;
 // unset it so Electron starts as a normal GUI/headless app.
+// cypress.cmd on Windows requires shell:true to resolve from node_modules/.bin.
 const { ELECTRON_RUN_AS_NODE: _removed, ...cleanEnv } = process.env;
-const cypress = spawnProc('cypress', ['run'], 'cypress', { env: cleanEnv });
+const cypress = spawnProc('cypress', ['run'], 'cypress', { shell: true, env: cleanEnv });
 
 cypress.on('close', (code) => {
   console.log(`\n[test] Cypress exited with code ${code}`);

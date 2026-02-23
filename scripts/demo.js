@@ -19,9 +19,9 @@ const configArg = process.argv.includes('--config')
   : ['--config', './demo/server-config.json'];
 
 const procs = [
-  spawn('node', ['demo/server-a.js'], { cwd: root, stdio: 'inherit', shell: true }),
-  spawn('node', ['demo/server-b.js'], { cwd: root, stdio: 'inherit', shell: true }),
-  spawn('node', ['server.js', ...configArg], { cwd: root, stdio: 'inherit', shell: true }),
+  spawn('node', ['demo/server-a.js'], { cwd: root, stdio: 'inherit' }),
+  spawn('node', ['demo/server-b.js'], { cwd: root, stdio: 'inherit' }),
+  spawn('node', ['server.js', ...configArg], { cwd: root, stdio: 'inherit' }),
 ];
 
 function shutdown() {

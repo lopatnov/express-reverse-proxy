@@ -1,5 +1,23 @@
 # Changelog
 
+## [5.0.0] — 2026-02-24
+
+### New features
+
+- **`rateLimit`**: set `"rateLimit": { "windowMs": 60000, "limit": 100 }` to limit requests per client per time window via `express-rate-limit`. Responds with `429` when exceeded.
+- **`basicAuth`**: set `"basicAuth": { "users": { "admin": "secret" } }` to protect a site with HTTP Basic Authentication via `express-basic-auth`.
+- **`cgi`**: execute server-side scripts (Python, Perl, shell, or any `.cgi`) via the CGI protocol. Set `"cgi": "./cgi-bin"` for a quick start, or use the full object form to configure the URL path, extensions, and per-extension interpreters. HTTP headers are mapped to `CGI/1.1` environment variables; the request body is piped to stdin and the script's stdout is streamed back as the response. Array form supported for multiple CGI directories. No external dependency — uses Node.js `child_process.spawn`.
+- **`upload`**: accept file uploads via `multipart/form-data` and save them to a local directory. Set `"upload": "./uploads"` for a quick start, or use the full object form to configure `maxFileSize`, `maxFiles`, `allowedTypes`, `fieldName`, and `path`. Uploaded files are served back via `GET <path>/<filename>`. Array form supported for multiple upload endpoints. Uses `multer` v2.
+- **`healthCheck`**: set `"healthCheck": true` (or `{ "path": "/health" }`) to expose a health check endpoint returning `{ status, uptime, timestamp }`. Placed before rate limiting and basic auth so it is always publicly accessible.
+- **`redirects`**: define URL redirect rules as an object map (`"/old": "/new"`) or an array (`{ from, to, status }`). Default status is `301`. Processed before static files and proxy rules.
+- **`logging` extended**: `logging` now accepts an object form — `{ "format": "combined", "file": "./logs/access.log" }` — to write access logs to a file. Logging is now per-site (was per-port).
+- **`ssl.redirect`**: add `"redirect": 80` to the `ssl` object to start an HTTP server on that port and redirect all traffic (301) to HTTPS.
+- **`--init` CLI flag**: `express-reverse-proxy --init` interactively creates a `server-config.json` in the current directory.
+- **Load balancing**: the `proxy` option now accepts an array of target URLs per path for round-robin distribution — e.g. `"/api": ["http://backend1:3000", "http://backend2:3000"]`.
+- **JSON Schema**: `server-config.schema.json` is published with the package. Add `"$schema": "https://unpkg.com/@lopatnov/express-reverse-proxy/server-config.schema.json"` to your config for IDE autocomplete.
+
+---
+
 ## [4.0.0] — 2026-02-20
 
 ### New features
