@@ -3,6 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import https from 'node:https';
 import path from 'node:path';
+import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import compression from 'compression';
 import cors from 'cors';
@@ -54,6 +55,10 @@ const possibleServerArgs = [
       '--cluster start --cluster-config ./my-ecosystem.config.cjs',
       '--cluster restart --cluster-config /etc/myapp/ecosystem.config.cjs',
     ],
+  },
+  {
+    name: '--init',
+    description: 'interactively creates a server-config.json in the current directory',
   },
 ];
 
@@ -151,6 +156,30 @@ if (serverArgs['--cluster']) {
 
   const result = spawnSync('pm2', pm2Commands[action], { stdio: 'inherit', shell: true });
   process.exit(result.status ?? 0);
+}
+
+if (serverArgs['--init']) {
+  const configOut = path.resolve(process.cwd(), 'server-config.json');
+  if (fs.existsSync(configOut)) {
+    const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const ans = await rl2.question(`${configOut} already exists. Overwrite? [y/N]: `);
+    rl2.close();
+    if (ans.trim().toLowerCase() !== 'y') process.exit(0);
+  }
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const port = (await rl.question('Port [8000]: ')).trim() || '8000';
+  const folder = (await rl.question('Static folder [.]: ')).trim() || '.';
+  const proxyPath = (await rl.question('Proxy path (e.g. /api) [skip]: ')).trim();
+  let proxyTarget = '';
+  if (proxyPath) proxyTarget = (await rl.question(`Proxy target for ${proxyPath}: `)).trim();
+  const hotReload = (await rl.question('Hot reload? [y/N]: ')).trim().toLowerCase() === 'y';
+  rl.close();
+  const cfg = { port: parseInt(port, 10), folders: folder };
+  if (proxyPath && proxyTarget) cfg.proxy = { [proxyPath]: proxyTarget };
+  if (hotReload) cfg.hotReload = true;
+  fs.writeFileSync(configOut, `${JSON.stringify(cfg, null, 2)}\n`);
+  console.log(`[init] Created ${configOut}`);
+  process.exit(0);
 }
 
 let configFile = './server-config.json';
@@ -258,12 +287,26 @@ function addStaticFolder(router, port, rootPath, folder) {
 }
 
 function addRemoteProxy(router, port, urlPath, proxyServer) {
-  if (urlPath) {
-    router.use(urlPath, proxy(proxyServer));
+  if (Array.isArray(proxyServer)) {
+    let i = 0;
+    const targets = proxyServer;
+    const balancedProxy = proxy((_req) => targets[i++ % targets.length]);
+    if (urlPath) {
+      router.use(urlPath, balancedProxy);
+    } else {
+      router.use(balancedProxy);
+    }
+    console.log(
+      `[proxy] http://localhost:${port}${urlPath || ''} <===> [${targets.join(', ')}] (round-robin)`,
+    );
   } else {
-    router.use(proxy(proxyServer));
+    if (urlPath) {
+      router.use(urlPath, proxy(proxyServer));
+    } else {
+      router.use(proxy(proxyServer));
+    }
+    console.log(`[proxy] http://localhost:${port}${urlPath || ''} <===> ${proxyServer}`);
   }
-  console.log(`[proxy] http://localhost:${port}${urlPath || ''} <===> ${proxyServer}`);
 }
 
 function addMappedProxy(router, port, localRootPath, pathPairs) {
@@ -315,11 +358,6 @@ const servers = [];
 
 configsByPort.forEach((portConfigs, p) => {
   const app = express();
-  const loggingEnabled = portConfigs.every((c) => c.logging !== false);
-  if (loggingEnabled) {
-    app.use(morgan('combined'));
-  }
-
   // Hot reload via SSE
   const hotReloadEnabled = portConfigs.some((c) => c.hotReload === true);
   if (hotReloadEnabled) {
@@ -369,6 +407,16 @@ configsByPort.forEach((portConfigs, p) => {
 
     console.log(`[host] ${siteHost} → :${p}`);
 
+    if (siteConfig.logging !== false) {
+      const lc = siteConfig.logging;
+      if (typeof lc === 'object' && lc.file) {
+        const stream = fs.createWriteStream(path.resolve(configDir, lc.file), { flags: 'a' });
+        router.use(morgan(lc.format || 'combined', { stream }));
+      } else {
+        router.use(morgan((typeof lc === 'object' ? lc.format : null) || 'dev'));
+      }
+    }
+
     if (siteConfig.responseTime) {
       const opts = typeof siteConfig.responseTime === 'object' ? siteConfig.responseTime : {};
       router.use(responseTime(opts));
@@ -393,6 +441,15 @@ configsByPort.forEach((portConfigs, p) => {
       router.use(favicon(path.resolve(configDir, siteConfig.favicon)));
     }
 
+    if (siteConfig.healthCheck) {
+      const hcPath =
+        (typeof siteConfig.healthCheck === 'object' && siteConfig.healthCheck.path) ||
+        '/__health__';
+      router.get(hcPath, (_req, res) => {
+        res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+      });
+    }
+
     if (siteConfig.rateLimit) {
       const opts = typeof siteConfig.rateLimit === 'object' ? siteConfig.rateLimit : {};
       router.use(rateLimit(opts));
@@ -408,6 +465,21 @@ configsByPort.forEach((portConfigs, p) => {
         for (const h of Object.keys(siteConfig.headers)) res.setHeader(h, siteConfig.headers[h]);
         next();
       });
+    }
+
+    if (siteConfig.redirects) {
+      const redirects = siteConfig.redirects;
+      if (Array.isArray(redirects)) {
+        for (const r of redirects) {
+          router.all(r.from, (_req, res) => res.redirect(r.status || 301, r.to));
+        }
+      } else {
+        for (const [from, to] of Object.entries(redirects)) {
+          const dest = typeof to === 'string' ? to : to.to;
+          const status = typeof to === 'object' ? to.status || 301 : 301;
+          router.all(from, (_req, res) => res.redirect(status, dest));
+        }
+      }
     }
 
     if (siteConfig.folders) {
@@ -609,6 +681,16 @@ configsByPort.forEach((portConfigs, p) => {
       console.log(`[listen] https://localhost:${p}`);
       if (process.send) process.send('ready');
     });
+    if (sslConfig.redirect) {
+      const redirectPort = sslConfig.redirect;
+      const redirectApp = express();
+      redirectApp.use((req, res) => {
+        res.redirect(301, `https://${req.hostname}:${p}${req.url}`);
+      });
+      redirectApp.listen(redirectPort, () => {
+        console.log(`[listen] http redirect :${redirectPort} → https :${p}`);
+      });
+    }
   } else {
     server = app.listen(p, () => {
       console.log(`[listen] http://localhost:${p}`);

@@ -109,6 +109,9 @@ dist
 cypress/videos/
 cypress/screenshots/
 
+# Test runner PID file (used by npm run test:stop)
+.test.pids
+
 # Environment variable files
 .env.*
 !.env.test

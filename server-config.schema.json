@@ -1,0 +1,321 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/@lopatnov/express-reverse-proxy/server-config.schema.json",
+  "title": "express-reverse-proxy server config",
+  "description": "Configuration file for @lopatnov/express-reverse-proxy",
+  "oneOf": [
+    { "$ref": "#/definitions/siteConfig" },
+    {
+      "type": "array",
+      "items": { "$ref": "#/definitions/siteConfig" },
+      "minItems": 1
+    }
+  ],
+  "definitions": {
+    "siteConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 8000,
+          "description": "TCP port the server listens on."
+        },
+        "host": {
+          "type": "string",
+          "description": "Virtual host to match against the HTTP Host header. Use \"*\" or omit for catch-all."
+        },
+        "folders": {
+          "$ref": "#/definitions/foldersOption",
+          "description": "Static file serving. String, array, or path-mapped object."
+        },
+        "proxy": {
+          "$ref": "#/definitions/proxyOption",
+          "description": "Reverse proxy routes. String, array, object, or object with array targets for round-robin."
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Custom response headers added to every response."
+        },
+        "unhandled": {
+          "type": "object",
+          "description": "Catch-all response sent when no route matches, keyed by Accept type.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "integer" },
+              "send": { "type": "string" },
+              "file": { "type": "string" },
+              "headers": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              }
+            }
+          }
+        },
+        "logging": {
+          "description": "Request logging. true = console (dev format), false = disabled, object = custom.",
+          "oneOf": [
+            { "type": "boolean" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "format": {
+                  "type": "string",
+                  "enum": ["combined", "common", "dev", "short", "tiny"],
+                  "default": "combined",
+                  "description": "Morgan format string."
+                },
+                "file": {
+                  "type": "string",
+                  "description": "Path to log file (relative to config file). Appends if exists."
+                }
+              }
+            }
+          ]
+        },
+        "ssl": {
+          "type": "object",
+          "required": ["key", "cert"],
+          "additionalProperties": false,
+          "description": "Enable HTTPS. Paths are relative to the config file.",
+          "properties": {
+            "key": { "type": "string", "description": "Path to private key PEM file." },
+            "cert": { "type": "string", "description": "Path to certificate PEM file." },
+            "ca": { "type": "string", "description": "Path to CA bundle PEM file (optional)." },
+            "redirect": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "description": "HTTP port to listen on and redirect (301) to HTTPS."
+            }
+          }
+        },
+        "hotReload": {
+          "type": "boolean",
+          "description": "Watch folders and push SSE reload events to connected browsers."
+        },
+        "compression": {
+          "description": "Enable gzip/deflate response compression via the compression package.",
+          "oneOf": [{ "type": "boolean" }, { "type": "object" }]
+        },
+        "helmet": {
+          "description": "Enable security headers via the helmet package.",
+          "oneOf": [{ "type": "boolean" }, { "type": "object" }]
+        },
+        "cors": {
+          "description": "Enable CORS headers and preflight handling via the cors package.",
+          "oneOf": [
+            { "type": "boolean" },
+            {
+              "type": "object",
+              "properties": {
+                "origin": {},
+                "methods": {},
+                "allowedHeaders": {},
+                "exposedHeaders": {},
+                "credentials": { "type": "boolean" },
+                "maxAge": { "type": "integer" }
+              }
+            }
+          ]
+        },
+        "favicon": {
+          "type": "string",
+          "description": "Path to favicon file (relative to config file)."
+        },
+        "responseTime": {
+          "description": "Add X-Response-Time header via the response-time package.",
+          "oneOf": [{ "type": "boolean" }, { "type": "object" }]
+        },
+        "rateLimit": {
+          "type": "object",
+          "description": "Rate limiting via express-rate-limit. Returns 429 when exceeded.",
+          "properties": {
+            "windowMs": { "type": "integer", "description": "Time window in milliseconds." },
+            "limit": { "type": "integer", "description": "Max requests per window." }
+          }
+        },
+        "basicAuth": {
+          "type": "object",
+          "description": "HTTP Basic Auth via express-basic-auth.",
+          "required": ["users"],
+          "properties": {
+            "users": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Map of username → password."
+            },
+            "challenge": { "type": "boolean" },
+            "realm": { "type": "string" }
+          }
+        },
+        "cgi": {
+          "description": "CGI/1.1 script execution. String (dir path), object, or array.",
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/definitions/cgiEntry" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/definitions/cgiEntry" }
+            }
+          ]
+        },
+        "upload": {
+          "description": "File upload endpoint via multer. String (dir path), object, or array.",
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/definitions/uploadEntry" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/definitions/uploadEntry" }
+            }
+          ]
+        },
+        "healthCheck": {
+          "description": "Expose a health check endpoint returning {status, uptime, timestamp}.",
+          "oneOf": [
+            { "type": "boolean" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "default": "/__health__",
+                  "description": "URL path for the health check endpoint."
+                }
+              }
+            }
+          ]
+        },
+        "redirects": {
+          "description": "URL redirect rules. Object map or array of {from, to, status} entries.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "oneOf": [
+                  { "type": "string" },
+                  {
+                    "type": "object",
+                    "required": ["to"],
+                    "properties": {
+                      "to": { "type": "string" },
+                      "status": { "type": "integer", "enum": [301, 302, 307, 308], "default": 301 }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["from", "to"],
+                "additionalProperties": false,
+                "properties": {
+                  "from": { "type": "string", "description": "Source path." },
+                  "to": { "type": "string", "description": "Destination path or URL." },
+                  "status": { "type": "integer", "enum": [301, 302, 307, 308], "default": 301 }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "foldersOption": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/definitions/foldersOption" }
+        },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/foldersOption" }
+        }
+      ]
+    },
+    "proxyOption": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [{ "type": "string" }, { "$ref": "#/definitions/proxyTarget" }]
+          },
+          "description": "Round-robin load balancing across multiple targets."
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Round-robin targets."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "proxyTarget": {
+      "type": "string"
+    },
+    "cgiEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "default": "/cgi-bin", "description": "URL prefix." },
+        "dir": {
+          "type": "string",
+          "description": "Directory with CGI scripts (relative to config file)."
+        },
+        "extensions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [".cgi", ".pl", ".py", ".sh"],
+          "description": "File extensions to treat as CGI scripts."
+        },
+        "interpreters": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Map of extension → interpreter command. Required on Windows."
+        }
+      }
+    },
+    "uploadEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "default": "/upload", "description": "URL prefix." },
+        "dir": {
+          "type": "string",
+          "description": "Directory to save uploaded files (relative to config file)."
+        },
+        "maxFileSize": {
+          "type": "integer",
+          "description": "Max file size in bytes. Returns 413 when exceeded."
+        },
+        "maxFiles": { "type": "integer", "description": "Max number of files per request." },
+        "allowedTypes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MIME type whitelist. Returns 400 for other types."
+        },
+        "fieldName": {
+          "type": "string",
+          "description": "Accept only files from this form field name."
+        }
+      }
+    }
+  }
+}

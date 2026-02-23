@@ -8,7 +8,8 @@
   "main": "server.js",
   "exports": {
     ".": "./server.js",
-    "./hot-reload-client": "./hot-reload-client.js"
+    "./hot-reload-client": "./hot-reload-client.js",
+    "./server-config.schema.json": "./server-config.schema.json"
   },
   "bin": {
     "express-reverse-proxy": "./server.js",
@@ -34,6 +35,7 @@
     "start:server-b": "node ./demo/server-b.js",
     "demo": "node ./scripts/demo.js",
     "test": "node ./scripts/test.js",
+    "test:stop": "node ./scripts/test.js --stop",
     "cypress:run": "cypress run",
     "cypress:open": "cypress open",
     "lint": "biome check .",
@@ -61,6 +63,7 @@
     "server.js",
     "hot-reload-client.js",
     "ecosystem.config.cjs",
+    "server-config.schema.json",
     "README.md",
     "LICENSE"
   ],
@@ -68,21 +71,21 @@
     "access": "public"
   },
   "dependencies": {
-    "compression": "^1.7.5",
-    "cors": "^2.8.5",
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
     "express": "^5.2.1",
     "express-basic-auth": "^1.2.1",
     "express-http-proxy": "^2.1.2",
-    "express-rate-limit": "^7.5.0",
-    "helmet": "^8.0.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "pm2": "^6.0.14",
-    "response-time": "^2.3.2",
-    "serve-favicon": "^2.5.0"
+    "response-time": "^2.3.4",
+    "serve-favicon": "^2.5.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.2",
+    "@biomejs/biome": "^2.4.4",
     "cypress": "^15.10.0"
   }
 }
