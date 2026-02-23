@@ -4,21 +4,15 @@
  *   2. Waits for all required ports to respond (4001, 4002, 8080, 8081)
  *   3. Runs `cypress run`
  *   4. Kills all spawned processes and exits with Cypress exit code
- *
- * Usage:
- *   node scripts/test.js          — run tests
- *   node scripts/test.js --stop   — kill leftover servers from a previous run
  */
 
 import { spawn } from 'node:child_process';
-import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
-const pidFile = path.join(root, '.test.pids');
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -51,24 +45,6 @@ function spawnProc(cmd, args, label, opts = {}) {
   return p;
 }
 
-// ── --stop: kill leftover servers from a previous run ─────────────────────────
-
-if (process.argv.includes('--stop')) {
-  try {
-    const pids = fs.readFileSync(pidFile, 'utf8').trim().split('\n').map(Number);
-    for (const pid of pids) {
-      try {
-        process.kill(pid);
-      } catch {}
-    }
-    fs.unlinkSync(pidFile);
-    console.log('[test] Stopped test servers.');
-  } catch {
-    console.log('[test] No running test servers found.');
-  }
-  process.exit(0);
-}
-
 // ── start servers ─────────────────────────────────────────────────────────────
 
 console.log('[test] Starting demo servers…');
@@ -81,14 +57,8 @@ const procs = [
   spawnProc('node', ['server.js', '--config', './demo/server-config.json'], 'proxy'),
 ];
 
-// Write PIDs so --stop can recover if this process is force-killed
-fs.writeFileSync(pidFile, `${procs.map((p) => p.pid).join('\n')}\n`);
-
 function killAll(code = 0) {
   for (const p of procs) p.kill();
-  try {
-    fs.unlinkSync(pidFile);
-  } catch {}
   process.exit(code);
 }
 
