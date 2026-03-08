@@ -17,16 +17,15 @@ jobs:
       - run: npm run lint
       - run: npm test
 
-  publish:
+  bump:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      packages: write
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
     steps:
       - uses: actions/checkout@v5
-
-      - name: Bump patch if already published
+      - name: Compute publish version
+        id: compute
         run: |
           LOCAL=$(node -p "require('./package.json').version")
           LATEST=$(npm view @lopatnov/express-reverse-proxy version 2>/dev/null || echo "0.0.0")
@@ -39,9 +38,25 @@ jobs:
           else
             echo "v$LOCAL not yet on npm — publishing as-is"
           fi
+          TARGET=$(node -p "require('./package.json').version")
+          echo "version=$TARGET" >> $GITHUB_OUTPUT
+          echo "Will publish v$TARGET"
 
-      - name: Publish to npmjs.org
-        uses: actions/setup-node@v5
+  publish-npm:
+    needs: bump
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set version ${{ needs.bump.outputs.version }}
+        run: |
+          TARGET="${{ needs.bump.outputs.version }}"
+          LOCAL=$(node -p "require('./package.json').version")
+          if [ "$TARGET" != "$LOCAL" ]; then
+            npm version $TARGET --no-git-tag-version
+          fi
+      - uses: actions/setup-node@v5
         with:
           node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
@@ -49,8 +64,21 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to GitHub Packages
-        uses: actions/setup-node@v5
+  publish-github:
+    needs: bump
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set version ${{ needs.bump.outputs.version }}
+        run: |
+          TARGET="${{ needs.bump.outputs.version }}"
+          LOCAL=$(node -p "require('./package.json').version")
+          if [ "$TARGET" != "$LOCAL" ]; then
+            npm version $TARGET --no-git-tag-version
+          fi
+      - uses: actions/setup-node@v5
         with:
           node-version: "24.x"
           registry-url: "https://npm.pkg.github.com"
