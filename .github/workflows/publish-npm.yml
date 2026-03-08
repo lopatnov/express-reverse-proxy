@@ -1,4 +1,4 @@
-name: Publish NPM package to npmjs.org
+name: Publish
 
 on:
   push:
@@ -9,8 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Use Node.js 24.x
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "24.x"
           cache: "npm"
@@ -18,18 +17,50 @@ jobs:
       - run: npm run lint
       - run: npm test
 
-  publish-npm:
+  publish:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
+      packages: write
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+
+      - name: Configure git
+        run: |
+          git config user.name "publish-bot"
+          git config user.email "lopatniov+publishbot@gmail.com"
+
+      - name: Bump patch if already published
+        run: |
+          LOCAL=$(node -p "require('./package.json').version")
+          if npm view "@lopatnov/express-reverse-proxy@$LOCAL" version &>/dev/null; then
+            echo "v$LOCAL already on npm — bumping patch"
+            npm version patch --no-git-tag-version
+            BUMPED=$(node -p "require('./package.json').version")
+            git add package.json package-lock.json
+            git commit -m "chore: bump to v$BUMPED [skip ci]"
+            git push
+          else
+            echo "v$LOCAL not yet on npm — no bump needed"
+          fi
+
+      - name: Publish to npmjs.org
+        uses: actions/setup-node@v5
         with:
           node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
       - run: npm publish --provenance --access=public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24.x"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@lopatnov"
+      - run: npm publish --access=public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

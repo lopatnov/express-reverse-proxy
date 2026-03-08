@@ -75,16 +75,16 @@
     "express": "^5.2.1",
     "express-basic-auth": "^1.2.1",
     "express-http-proxy": "^2.1.2",
-    "express-rate-limit": "^8.2.1",
+    "express-rate-limit": "^8.3.0",
     "helmet": "^8.1.0",
     "morgan": "^1.10.1",
-    "multer": "^2.0.2",
+    "multer": "^2.1.1",
     "pm2": "^6.0.14",
     "response-time": "^2.3.4",
     "serve-favicon": "^2.5.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.4",
-    "cypress": "^15.10.0"
+    "@biomejs/biome": "^2.4.6",
+    "cypress": "^15.11.0"
   }
 }
