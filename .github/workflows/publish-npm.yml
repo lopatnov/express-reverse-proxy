@@ -21,29 +21,21 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       id-token: write
       packages: write
     steps:
       - uses: actions/checkout@v5
 
-      - name: Configure git
-        run: |
-          git config user.name "publish-bot"
-          git config user.email "lopatniov+publishbot@gmail.com"
-
       - name: Bump patch if already published
         run: |
           LOCAL=$(node -p "require('./package.json').version")
+          LATEST=$(npm view @lopatnov/express-reverse-proxy version 2>/dev/null || echo "0.0.0")
           if npm view "@lopatnov/express-reverse-proxy@$LOCAL" version &>/dev/null; then
-            echo "v$LOCAL already on npm — bumping patch"
+            echo "v$LOCAL already on npm — bumping patch from v$LATEST"
+            npm version $LATEST --no-git-tag-version
             npm version patch --no-git-tag-version
-            BUMPED=$(node -p "require('./package.json').version")
-            git add package.json package-lock.json
-            git commit -m "chore: bump to v$BUMPED [skip ci]"
-            git push
           else
-            echo "v$LOCAL not yet on npm — no bump needed"
+            echo "v$LOCAL not yet on npm — publishing as-is"
           fi
 
       - name: Publish to npmjs.org
