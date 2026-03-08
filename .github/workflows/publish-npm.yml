@@ -32,7 +32,9 @@ jobs:
           LATEST=$(npm view @lopatnov/express-reverse-proxy version 2>/dev/null || echo "0.0.0")
           if npm view "@lopatnov/express-reverse-proxy@$LOCAL" version &>/dev/null; then
             echo "v$LOCAL already on npm — bumping patch from v$LATEST"
-            npm version $LATEST --no-git-tag-version
+            if [ "$LATEST" != "$LOCAL" ]; then
+              npm version $LATEST --no-git-tag-version
+            fi
             npm version patch --no-git-tag-version
           else
             echo "v$LOCAL not yet on npm — publishing as-is"
