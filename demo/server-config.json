@@ -20,7 +20,8 @@
     "redirects": {
       "/old-page": "/",
       "/legacy": { "to": "/", "status": 302 }
-    }
+    },
+    "compression": true
   },
   {
     "port": 8081,
@@ -36,5 +37,17 @@
       "html": { "status": 307, "headers": { "Location": "/" } },
       "json": { "status": 404, "send": { "error": "Not Found" } }
     }
+  },
+  {
+    "port": 8082,
+    "folders": "demo/client-a",
+    "healthCheck": true,
+    "basicAuth": { "users": { "admin": "secret" } }
+  },
+  {
+    "port": 8083,
+    "folders": "demo/client-a",
+    "healthCheck": true,
+    "rateLimit": { "windowMs": 10000, "limit": 3 }
   }
 ]

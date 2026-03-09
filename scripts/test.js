@@ -72,6 +72,8 @@ const urls = [
   'http://localhost:4002/products',
   'http://localhost:8080',
   'http://localhost:8081',
+  'http://localhost:8082/__health__',
+  'http://localhost:8083/__health__',
 ];
 
 try {
