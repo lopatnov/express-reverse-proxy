@@ -1,7 +1,7 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "5.0.3",
+  "version": "5.0.4",
   "description": "Node.js CLI tool to serve static front-end files with a reverse proxy for back-end APIs",
   "type": "module",
   "author": "lopatnov",
