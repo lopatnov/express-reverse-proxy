@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.compute.outputs.version }}
+      bumped: ${{ steps.compute.outputs.bumped }}
     steps:
       - uses: actions/checkout@v5
       - name: Compute publish version
@@ -35,8 +36,10 @@ jobs:
               npm version $LATEST --no-git-tag-version
             fi
             npm version patch --no-git-tag-version
+            echo "bumped=true" >> $GITHUB_OUTPUT
           else
             echo "v$LOCAL not yet on npm — publishing as-is"
+            echo "bumped=false" >> $GITHUB_OUTPUT
           fi
           TARGET=$(node -p "require('./package.json').version")
           echo "version=$TARGET" >> $GITHUB_OUTPUT
@@ -86,3 +89,21 @@ jobs:
       - run: npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  push-version:
+    needs: bump
+    if: needs.bump.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.BUMP_TOKEN }}
+      - name: Push version bump to git
+        run: |
+          TARGET="${{ needs.bump.outputs.version }}"
+          npm version $TARGET --no-git-tag-version
+          git config user.name "publish-bot"
+          git config user.email "lopatniov+publishbot@gmail.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump to v$TARGET [skip ci]"
+          git push
