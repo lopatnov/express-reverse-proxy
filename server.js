@@ -79,7 +79,7 @@ function parseArguments(args) {
           const subArgIndex = argIndex + index + 1;
           if (
             process.argv.length <= subArgIndex ||
-            argsNames.indexOf(process.argv[subArgIndex]) > -1
+            argsNames.includes(process.argv[subArgIndex])
           ) {
             exitError(`Invalid argument ${arg.name}. Missing <${subArg}>.`, 16);
           }
@@ -99,8 +99,8 @@ function help(app, args) {
 
   args.forEach((arg) => {
     const tabIndentLength = 3;
-    const tabIndent = Array(tabIndentLength).fill('\t').join('');
-    const argTabIndent = Array(tabIndentLength - Math.trunc(arg.name.length / 4))
+    const tabIndent = new Array(tabIndentLength).fill('\t').join('');
+    const argTabIndent = new Array(tabIndentLength - Math.trunc(arg.name.length / 4))
       .fill('\t')
       .join('');
     console.log(`\t\x1b[1m${arg.name}\x1b[0m${argTabIndent}${arg.description}`);
@@ -174,7 +174,7 @@ if (serverArgs['--init']) {
   if (proxyPath) proxyTarget = (await rl.question(`Proxy target for ${proxyPath}: `)).trim();
   const hotReload = (await rl.question('Hot reload? [y/N]: ')).trim().toLowerCase() === 'y';
   rl.close();
-  const cfg = { port: parseInt(port, 10), folders: folder };
+  const cfg = { port: Number.parseInt(port, 10), folders: folder };
   if (proxyPath && proxyTarget) cfg.proxy = { [proxyPath]: proxyTarget };
   if (hotReload) cfg.hotReload = true;
   fs.writeFileSync(configOut, `${JSON.stringify(cfg, null, 2)}\n`);
@@ -194,7 +194,14 @@ const configDir = path.dirname(path.resolve(configFile));
 const DEFAULT_CONFIG = { port: 8000, folders: '.' };
 
 let rawConfig;
-if (!fs.existsSync(configFile)) {
+if (fs.existsSync(configFile)) {
+  console.log(`[config] ${configFile}`);
+  try {
+    rawConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+  } catch (err) {
+    exitError(`Failed to parse "${configFile}": ${err.message}`, 1);
+  }
+} else {
   if (serverArgs['--config']) {
     exitError(`Configuration file not found: "${configFile}"`, 404);
   }
@@ -202,13 +209,6 @@ if (!fs.existsSync(configFile)) {
     `\x1b[33m[config] "${configFile}" not found — using defaults (port: 8000, folders: ".")\x1b[0m`,
   );
   rawConfig = DEFAULT_CONFIG;
-} else {
-  console.log(`[config] ${configFile}`);
-  try {
-    rawConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-  } catch (err) {
-    exitError(`Failed to parse "${configFile}": ${err.message}`, 1);
-  }
 }
 
 const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
@@ -216,7 +216,7 @@ const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
 // Validate: same host on same port is an error; same host on different ports is OK
 const seen = new Set();
 configs.forEach((c) => {
-  const p = parseInt(c.port || process.env.PORT || 8000, 10);
+  const p = Number.parseInt(c.port || process.env.PORT || 8000, 10);
   if (p < 1 || p > 65535) exitError(`Invalid port: ${p}`, 1);
   const key = `${p}:${c.host || '*'}`;
   if (seen.has(key)) {
@@ -228,7 +228,7 @@ configs.forEach((c) => {
 // Group configs by port
 const configsByPort = new Map();
 configs.forEach((c) => {
-  const p = parseInt(c.port || process.env.PORT || 8000, 10);
+  const p = Number.parseInt(c.port || process.env.PORT || 8000, 10);
   if (!configsByPort.has(p)) configsByPort.set(p, []);
   configsByPort.get(p).push(c);
 });
@@ -333,6 +333,268 @@ function addProxy(router, port, localRootPath, remoteProxy) {
   }
 }
 
+function configureLogging(router, siteConfig, configDir) {
+  if (siteConfig.logging === false) return;
+  const lc = siteConfig.logging;
+  if (typeof lc === 'object' && lc.file) {
+    const stream = fs.createWriteStream(path.resolve(configDir, lc.file), { flags: 'a' });
+    router.use(morgan(lc.format || 'combined', { stream }));
+  } else {
+    router.use(morgan((typeof lc === 'object' ? lc.format : null) || 'dev'));
+  }
+}
+
+function configureMiddleware(router, siteConfig, p) {
+  if (siteConfig.responseTime) {
+    const opts = typeof siteConfig.responseTime === 'object' ? siteConfig.responseTime : {};
+    router.use(responseTime(opts));
+  }
+  if (siteConfig.cors) {
+    const opts = typeof siteConfig.cors === 'object' ? siteConfig.cors : {};
+    router.use(cors(opts));
+  }
+  if (siteConfig.compression) {
+    const opts = typeof siteConfig.compression === 'object' ? siteConfig.compression : {};
+    router.use(compression(opts));
+  }
+  if (siteConfig.helmet) {
+    const opts = typeof siteConfig.helmet === 'object' ? siteConfig.helmet : {};
+    router.use(helmet(opts));
+  }
+  if (siteConfig.favicon) {
+    router.use(favicon(path.resolve(configDir, siteConfig.favicon)));
+  }
+  if (siteConfig.healthCheck) {
+    const hcPath =
+      (typeof siteConfig.healthCheck === 'object' && siteConfig.healthCheck.path) || '/__health__';
+    router.get(hcPath, (_req, res) => {
+      res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+    });
+  }
+  if (siteConfig.rateLimit) {
+    const opts = typeof siteConfig.rateLimit === 'object' ? siteConfig.rateLimit : {};
+    router.use(rateLimit(opts));
+  }
+  if (siteConfig.basicAuth) {
+    const opts = typeof siteConfig.basicAuth === 'object' ? siteConfig.basicAuth : {};
+    router.use(basicAuth(opts));
+  }
+  if (siteConfig.headers) {
+    router.use((_req, res, next) => {
+      for (const h of Object.keys(siteConfig.headers)) res.setHeader(h, siteConfig.headers[h]);
+      next();
+    });
+  }
+}
+
+function setupRedirects(router, redirects) {
+  if (Array.isArray(redirects)) {
+    for (const r of redirects) {
+      router.all(r.from, (_req, res) => res.redirect(r.status || 301, r.to));
+    }
+  } else {
+    for (const [from, to] of Object.entries(redirects)) {
+      const dest = typeof to === 'string' ? to : to.to;
+      const status = typeof to === 'object' ? to.status || 301 : 301;
+      router.all(from, (_req, res) => res.redirect(status, dest));
+    }
+  }
+}
+
+function setupCgi(router, siteConfig, p, configDir) {
+  if (!siteConfig.cgi) return;
+  const cgiRaw = siteConfig.cgi;
+  const cgiConfigs = Array.isArray(cgiRaw)
+    ? cgiRaw
+    : [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
+
+  for (const cgiConfig of cgiConfigs) {
+    const cgiUrlPath = cgiConfig.path || '/cgi-bin';
+    const cgiDirResolved = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
+    const cgiExts = new Set(cgiConfig.extensions || ['.cgi', '.pl', '.py', '.sh']);
+    const interps = cgiConfig.interpreters || {};
+
+    router.use(cgiUrlPath, (req, res, next) => {
+      const scriptPath = path.resolve(path.join(cgiDirResolved, req.path));
+      if (!scriptPath.startsWith(cgiDirResolved + path.sep)) return next();
+
+      const ext = path.extname(scriptPath);
+      if (!cgiExts.has(ext)) return next();
+      let scriptStat;
+      try { scriptStat = fs.statSync(scriptPath); } catch { return next(); }
+      if (!scriptStat.isFile()) return next();
+
+      const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      const env = {
+        ...process.env,
+        GATEWAY_INTERFACE: 'CGI/1.1',
+        SERVER_PROTOCOL: 'HTTP/1.1',
+        SERVER_SOFTWARE: 'express-reverse-proxy',
+        REQUEST_METHOD: req.method.toUpperCase(),
+        SCRIPT_FILENAME: scriptPath,
+        SCRIPT_NAME: cgiUrlPath + req.path,
+        PATH_INFO: '',
+        QUERY_STRING: url.search ? url.search.slice(1) : '',
+        REMOTE_ADDR: req.ip || '127.0.0.1',
+        CONTENT_TYPE: req.headers['content-type'] || '',
+        CONTENT_LENGTH: req.headers['content-length'] || '0',
+        SERVER_NAME: req.hostname || 'localhost',
+        SERVER_PORT: String(p),
+      };
+      for (const [k, v] of Object.entries(req.headers)) {
+        env[`HTTP_${k.toUpperCase().replaceAll('-', '_')}`] = Array.isArray(v) ? v.join(', ') : v;
+      }
+
+      const interpreter = interps[ext];
+      const command = interpreter || scriptPath;
+      const args = interpreter ? [scriptPath] : [];
+      const child = spawn(command, args, { env, cwd: path.dirname(scriptPath), shell: false });
+
+      child.stdin.on('error', (_err) => {});
+      req.pipe(child.stdin);
+
+      let headersParsed = false;
+      let rawBuf = '';
+      child.stdout.on('data', (chunk) => {
+        if (headersParsed) {
+          res.write(chunk);
+        } else {
+          rawBuf += chunk.toString('binary');
+          const m = /\r?\n\r?\n/.exec(rawBuf);
+          if (m) {
+            const rawHeaders = rawBuf.substring(0, m.index);
+            const bodyStart = Buffer.from(rawBuf.substring(m.index + m[0].length), 'binary');
+            headersParsed = true;
+            let statusCode = 200;
+            for (const line of rawHeaders.split(/\r?\n/)) {
+              const colon = line.indexOf(':');
+              if (colon === -1) continue;
+              const name = line.substring(0, colon).trim();
+              const value = line.substring(colon + 1).trim();
+              if (name.toLowerCase() === 'status') {
+                statusCode = Number.parseInt(value, 10) || 200;
+              } else {
+                res.setHeader(name, value);
+              }
+            }
+            res.status(statusCode);
+            if (bodyStart.length) res.write(bodyStart);
+          }
+        }
+      });
+      child.stdout.on('end', () => {
+        if (!headersParsed) res.status(500).send('CGI script produced no output');
+        else res.end();
+      });
+      child.stderr.on('data', (data) => console.error(`[cgi] ${scriptPath}: ${data}`));
+      child.on('error', (err) => {
+        console.error(`[cgi] spawn error for ${scriptPath}: ${err.message}`);
+        if (!res.headersSent) res.status(500).send(`CGI error: ${err.message}`);
+      });
+      console.log(`[cgi] ${req.method} ${cgiUrlPath}${req.path} → ${scriptPath}`);
+    });
+  }
+}
+
+function setupUpload(router, siteConfig, configDir) {
+  if (!siteConfig.upload) return;
+  const uploadRaw = siteConfig.upload;
+  const uploadConfigs = Array.isArray(uploadRaw)
+    ? uploadRaw
+    : [typeof uploadRaw === 'string' ? { dir: uploadRaw } : uploadRaw];
+
+  for (const uploadConfig of uploadConfigs) {
+    const uploadUrlPath = uploadConfig.path || '/upload';
+    const uploadDir = path.resolve(configDir, uploadConfig.dir || './uploads');
+    const allowedTypes = uploadConfig.allowedTypes ? new Set(uploadConfig.allowedTypes) : null;
+
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    const storage = multer.diskStorage({
+      destination: uploadDir,
+      filename: (_req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const base = path.basename(file.originalname, ext).replaceAll(/[^a-zA-Z0-9_.-]/g, '_');
+        cb(null, `${base}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+      },
+    });
+
+    const fileFilter = allowedTypes
+      ? (_req, file, cb) => {
+          if (allowedTypes.has(file.mimetype)) cb(null, true);
+          else
+            cb(
+              Object.assign(new Error(`File type not allowed: ${file.mimetype}`), {
+                status: 400,
+              }),
+            );
+        }
+      : undefined;
+
+    const limits = {};
+    if (uploadConfig.maxFileSize) limits.fileSize = uploadConfig.maxFileSize;
+    if (uploadConfig.maxFiles) limits.files = uploadConfig.maxFiles;
+
+    const uploader = multer({ storage, limits, fileFilter });
+    const multerMiddleware = uploadConfig.fieldName
+      ? uploader.array(uploadConfig.fieldName)
+      : uploader.any();
+
+    router.post(uploadUrlPath, multerMiddleware, (req, res) => {
+      if (!req.files?.length) return res.status(400).json({ error: 'No files uploaded' });
+      res.json({
+        files: req.files.map((f) => ({
+          file: f.filename,
+          size: f.size,
+          originalName: f.originalname,
+        })),
+      });
+    });
+
+    router.use(uploadUrlPath, express.static(uploadDir));
+    console.log(`[upload] POST ${uploadUrlPath} → ${uploadDir}`);
+  }
+}
+
+function setupHotReload(app, portConfigs, p) {
+  const hotReloadEnabled = portConfigs.some((c) => c.hotReload === true);
+  if (!hotReloadEnabled) return;
+
+  const hotReloadClientJs = fs.readFileSync(path.join(__dirname, 'hot-reload-client.js'), 'utf8');
+  const sseClients = new Set();
+  let reloadTimer = null;
+
+  app.get('/__hot-reload__', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    sseClients.add(res);
+    req.on('close', () => sseClients.delete(res));
+  });
+
+  app.get('/__hot-reload__/client.js', (_req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.send(hotReloadClientJs);
+  });
+
+  const watchPaths = [
+    ...new Set(portConfigs.flatMap((c) => collectFolderPaths(c.folders || []))),
+  ];
+  for (const folder of watchPaths) {
+    const absPath = path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder);
+    if (fs.existsSync(absPath)) {
+      fs.watch(absPath, { recursive: true }, () => {
+        clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => {
+          for (const client of sseClients) client.write('data: reload\n\n');
+        }, 100);
+      });
+    }
+  }
+  console.log(`[hot-reload] watching ${watchPaths.length} folder(s) on port ${p}`);
+}
+
 function unhandled(res, acceptConfig) {
   const headers = (acceptConfig.headers && Object.keys(acceptConfig.headers)) || [];
   for (const header of headers) res.setHeader(header, acceptConfig.headers[header]);
@@ -358,43 +620,7 @@ const servers = [];
 
 configsByPort.forEach((portConfigs, p) => {
   const app = express();
-  // Hot reload via SSE
-  const hotReloadEnabled = portConfigs.some((c) => c.hotReload === true);
-  if (hotReloadEnabled) {
-    const hotReloadClientJs = fs.readFileSync(path.join(__dirname, 'hot-reload-client.js'), 'utf8');
-    const sseClients = new Set();
-    let reloadTimer = null;
-
-    app.get('/__hot-reload__', (req, res) => {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.flushHeaders();
-      sseClients.add(res);
-      req.on('close', () => sseClients.delete(res));
-    });
-
-    app.get('/__hot-reload__/client.js', (_req, res) => {
-      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-      res.send(hotReloadClientJs);
-    });
-
-    const watchPaths = [
-      ...new Set(portConfigs.flatMap((c) => collectFolderPaths(c.folders || []))),
-    ];
-    for (const folder of watchPaths) {
-      const absPath = path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder);
-      if (fs.existsSync(absPath)) {
-        fs.watch(absPath, { recursive: true }, () => {
-          clearTimeout(reloadTimer);
-          reloadTimer = setTimeout(() => {
-            for (const client of sseClients) client.write('data: reload\n\n');
-          }, 100);
-        });
-      }
-    }
-    console.log(`[hot-reload] watching ${watchPaths.length} folder(s) on port ${p}`);
-  }
+  setupHotReload(app, portConfigs, p);
 
   // Specific hosts first, catch-all last
   const sorted = [
@@ -405,257 +631,23 @@ configsByPort.forEach((portConfigs, p) => {
   sorted.forEach((siteConfig) => {
     const siteHost = siteConfig.host || '*';
     const router = express.Router();
-
     console.log(`[host] ${siteHost} → :${p}`);
-
-    if (siteConfig.logging !== false) {
-      const lc = siteConfig.logging;
-      if (typeof lc === 'object' && lc.file) {
-        const stream = fs.createWriteStream(path.resolve(configDir, lc.file), { flags: 'a' });
-        router.use(morgan(lc.format || 'combined', { stream }));
-      } else {
-        router.use(morgan((typeof lc === 'object' ? lc.format : null) || 'dev'));
-      }
-    }
-
-    if (siteConfig.responseTime) {
-      const opts = typeof siteConfig.responseTime === 'object' ? siteConfig.responseTime : {};
-      router.use(responseTime(opts));
-    }
-
-    if (siteConfig.cors) {
-      const opts = typeof siteConfig.cors === 'object' ? siteConfig.cors : {};
-      router.use(cors(opts));
-    }
-
-    if (siteConfig.compression) {
-      const opts = typeof siteConfig.compression === 'object' ? siteConfig.compression : {};
-      router.use(compression(opts));
-    }
-
-    if (siteConfig.helmet) {
-      const opts = typeof siteConfig.helmet === 'object' ? siteConfig.helmet : {};
-      router.use(helmet(opts));
-    }
-
-    if (siteConfig.favicon) {
-      router.use(favicon(path.resolve(configDir, siteConfig.favicon)));
-    }
-
-    if (siteConfig.healthCheck) {
-      const hcPath =
-        (typeof siteConfig.healthCheck === 'object' && siteConfig.healthCheck.path) ||
-        '/__health__';
-      router.get(hcPath, (_req, res) => {
-        res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
-      });
-    }
-
-    if (siteConfig.rateLimit) {
-      const opts = typeof siteConfig.rateLimit === 'object' ? siteConfig.rateLimit : {};
-      router.use(rateLimit(opts));
-    }
-
-    if (siteConfig.basicAuth) {
-      const opts = typeof siteConfig.basicAuth === 'object' ? siteConfig.basicAuth : {};
-      router.use(basicAuth(opts));
-    }
-
-    if (siteConfig.headers) {
-      router.use((_req, res, next) => {
-        for (const h of Object.keys(siteConfig.headers)) res.setHeader(h, siteConfig.headers[h]);
-        next();
-      });
-    }
-
-    if (siteConfig.redirects) {
-      const redirects = siteConfig.redirects;
-      if (Array.isArray(redirects)) {
-        for (const r of redirects) {
-          router.all(r.from, (_req, res) => res.redirect(r.status || 301, r.to));
-        }
-      } else {
-        for (const [from, to] of Object.entries(redirects)) {
-          const dest = typeof to === 'string' ? to : to.to;
-          const status = typeof to === 'object' ? to.status || 301 : 301;
-          router.all(from, (_req, res) => res.redirect(status, dest));
-        }
-      }
-    }
-
-    if (siteConfig.folders) {
-      addStaticFolder(router, p, null, siteConfig.folders);
-    }
-
-    if (siteConfig.cgi) {
-      const cgiRaw = siteConfig.cgi;
-      const cgiConfigs = Array.isArray(cgiRaw)
-        ? cgiRaw
-        : [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
-
-      for (const cgiConfig of cgiConfigs) {
-        const cgiUrlPath = cgiConfig.path || '/cgi-bin';
-        const cgiDirResolved = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
-        const cgiExts = new Set(cgiConfig.extensions || ['.cgi', '.pl', '.py', '.sh']);
-        const interps = cgiConfig.interpreters || {};
-
-        router.use(cgiUrlPath, (req, res, next) => {
-          const scriptPath = path.resolve(path.join(cgiDirResolved, req.path));
-          if (!scriptPath.startsWith(cgiDirResolved + path.sep)) return next();
-
-          const ext = path.extname(scriptPath);
-          if (!cgiExts.has(ext)) return next();
-          let scriptStat;
-          try { scriptStat = fs.statSync(scriptPath); } catch { return next(); }
-          if (!scriptStat.isFile()) return next();
-
-          const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-          const env = {
-            ...process.env,
-            GATEWAY_INTERFACE: 'CGI/1.1',
-            SERVER_PROTOCOL: 'HTTP/1.1',
-            SERVER_SOFTWARE: 'express-reverse-proxy',
-            REQUEST_METHOD: req.method.toUpperCase(),
-            SCRIPT_FILENAME: scriptPath,
-            SCRIPT_NAME: cgiUrlPath + req.path,
-            PATH_INFO: '',
-            QUERY_STRING: url.search ? url.search.slice(1) : '',
-            REMOTE_ADDR: req.ip || '127.0.0.1',
-            CONTENT_TYPE: req.headers['content-type'] || '',
-            CONTENT_LENGTH: req.headers['content-length'] || '0',
-            SERVER_NAME: req.hostname || 'localhost',
-            SERVER_PORT: String(p),
-          };
-          for (const [k, v] of Object.entries(req.headers)) {
-            env[`HTTP_${k.toUpperCase().replace(/-/g, '_')}`] = Array.isArray(v) ? v.join(', ') : v;
-          }
-
-          const interpreter = interps[ext];
-          const command = interpreter || scriptPath;
-          const args = interpreter ? [scriptPath] : [];
-          const child = spawn(command, args, { env, cwd: path.dirname(scriptPath), shell: false });
-
-          child.stdin.on('error', (_err) => {});
-          req.pipe(child.stdin);
-
-          let headersParsed = false;
-          let rawBuf = '';
-          child.stdout.on('data', (chunk) => {
-            if (!headersParsed) {
-              rawBuf += chunk.toString('binary');
-              const m = /\r?\n\r?\n/.exec(rawBuf);
-              if (m) {
-                const rawHeaders = rawBuf.substring(0, m.index);
-                const bodyStart = Buffer.from(rawBuf.substring(m.index + m[0].length), 'binary');
-                headersParsed = true;
-                let statusCode = 200;
-                for (const line of rawHeaders.split(/\r?\n/)) {
-                  const colon = line.indexOf(':');
-                  if (colon === -1) continue;
-                  const name = line.substring(0, colon).trim();
-                  const value = line.substring(colon + 1).trim();
-                  if (name.toLowerCase() === 'status') {
-                    statusCode = Number.parseInt(value, 10) || 200;
-                  } else {
-                    res.setHeader(name, value);
-                  }
-                }
-                res.status(statusCode);
-                if (bodyStart.length) res.write(bodyStart);
-              }
-            } else {
-              res.write(chunk);
-            }
-          });
-          child.stdout.on('end', () => {
-            if (!headersParsed) res.status(500).send('CGI script produced no output');
-            else res.end();
-          });
-          child.stderr.on('data', (data) => console.error(`[cgi] ${scriptPath}: ${data}`));
-          child.on('error', (err) => {
-            console.error(`[cgi] spawn error for ${scriptPath}: ${err.message}`);
-            if (!res.headersSent) res.status(500).send(`CGI error: ${err.message}`);
-          });
-          console.log(`[cgi] ${req.method} ${cgiUrlPath}${req.path} → ${scriptPath}`);
-        });
-      }
-    }
-
-    if (siteConfig.upload) {
-      const uploadRaw = siteConfig.upload;
-      const uploadConfigs = Array.isArray(uploadRaw)
-        ? uploadRaw
-        : [typeof uploadRaw === 'string' ? { dir: uploadRaw } : uploadRaw];
-
-      for (const uploadConfig of uploadConfigs) {
-        const uploadUrlPath = uploadConfig.path || '/upload';
-        const uploadDir = path.resolve(configDir, uploadConfig.dir || './uploads');
-        const allowedTypes = uploadConfig.allowedTypes ? new Set(uploadConfig.allowedTypes) : null;
-
-        fs.mkdirSync(uploadDir, { recursive: true });
-
-        const storage = multer.diskStorage({
-          destination: uploadDir,
-          filename: (_req, file, cb) => {
-            const ext = path.extname(file.originalname);
-            const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_.-]/g, '_');
-            cb(null, `${base}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
-          },
-        });
-
-        const fileFilter = allowedTypes
-          ? (_req, file, cb) => {
-              if (allowedTypes.has(file.mimetype)) cb(null, true);
-              else
-                cb(
-                  Object.assign(new Error(`File type not allowed: ${file.mimetype}`), {
-                    status: 400,
-                  }),
-                );
-            }
-          : undefined;
-
-        const limits = {};
-        if (uploadConfig.maxFileSize) limits.fileSize = uploadConfig.maxFileSize;
-        if (uploadConfig.maxFiles) limits.files = uploadConfig.maxFiles;
-
-        const uploader = multer({ storage, limits, fileFilter });
-        const multerMiddleware = uploadConfig.fieldName
-          ? uploader.array(uploadConfig.fieldName)
-          : uploader.any();
-
-        router.post(uploadUrlPath, multerMiddleware, (req, res) => {
-          if (!req.files?.length) return res.status(400).json({ error: 'No files uploaded' });
-          res.json({
-            files: req.files.map((f) => ({
-              file: f.filename,
-              size: f.size,
-              originalName: f.originalname,
-            })),
-          });
-        });
-
-        router.use(uploadUrlPath, express.static(uploadDir));
-        console.log(`[upload] POST ${uploadUrlPath} → ${uploadDir}`);
-      }
-    }
-
-    if (siteConfig.proxy) {
-      addProxy(router, p, null, siteConfig.proxy);
-    }
-
+    configureLogging(router, siteConfig, configDir);
+    configureMiddleware(router, siteConfig, p);
+    if (siteConfig.redirects) setupRedirects(router, siteConfig.redirects);
+    if (siteConfig.folders) addStaticFolder(router, p, null, siteConfig.folders);
+    setupCgi(router, siteConfig, p, configDir);
+    setupUpload(router, siteConfig, configDir);
+    if (siteConfig.proxy) addProxy(router, p, null, siteConfig.proxy);
     if (siteConfig.unhandled) {
       router.use((req, res, _next) => {
         Object.keys(siteConfig.unhandled).forEach((acceptName) => {
-          if (!acceptName || acceptName === '*' || acceptName === '**') {
-            unhandled(res, siteConfig.unhandled[acceptName]);
-          } else if (req.accepts(acceptName)) {
+          if (!acceptName || acceptName === '*' || acceptName === '**' || req.accepts(acceptName)) {
             unhandled(res, siteConfig.unhandled[acceptName]);
           }
         });
       });
     }
-
     if (siteHost === '*') {
       app.use(router);
     } else {

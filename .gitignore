@@ -114,3 +114,7 @@ cypress/screenshots/
 !.env.test
 
 /.claude
+
+# IDE and editor settings
+.vscode/
+.sonarlint/
