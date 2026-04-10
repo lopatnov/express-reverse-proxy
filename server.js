@@ -77,10 +77,7 @@ function parseArguments(args) {
       if (arg.subArgs) {
         arg.subArgs.forEach((subArg, index) => {
           const subArgIndex = argIndex + index + 1;
-          if (
-            process.argv.length <= subArgIndex ||
-            argsNames.includes(process.argv[subArgIndex])
-          ) {
+          if (process.argv.length <= subArgIndex || argsNames.includes(process.argv[subArgIndex])) {
             exitError(`Invalid argument ${arg.name}. Missing <${subArg}>.`, 16);
           }
           res[arg.name].args.push(process.argv[subArgIndex]);
@@ -99,10 +96,10 @@ function help(app, args) {
 
   args.forEach((arg) => {
     const tabIndentLength = 3;
-    const tabIndent = new Array(tabIndentLength).fill('\t').join('');
-    const argTabIndent = new Array(tabIndentLength - Math.trunc(arg.name.length / 4))
-      .fill('\t')
-      .join('');
+    const tabIndent = '\t'.repeat(tabIndentLength);
+    const argTabIndent = '\t'.repeat(
+      Math.max(1, tabIndentLength - Math.trunc(arg.name.length / 4)),
+    );
     console.log(`\t\x1b[1m${arg.name}\x1b[0m${argTabIndent}${arg.description}`);
     if (arg.subArgs) {
       const subArgs = arg.subArgs.map((subArg) => `<${subArg}>`).join(' ');
@@ -344,26 +341,16 @@ function configureLogging(router, siteConfig, configDir) {
   }
 }
 
-function configureMiddleware(router, siteConfig, p) {
-  if (siteConfig.responseTime) {
-    const opts = typeof siteConfig.responseTime === 'object' ? siteConfig.responseTime : {};
-    router.use(responseTime(opts));
-  }
-  if (siteConfig.cors) {
-    const opts = typeof siteConfig.cors === 'object' ? siteConfig.cors : {};
-    router.use(cors(opts));
-  }
-  if (siteConfig.compression) {
-    const opts = typeof siteConfig.compression === 'object' ? siteConfig.compression : {};
-    router.use(compression(opts));
-  }
-  if (siteConfig.helmet) {
-    const opts = typeof siteConfig.helmet === 'object' ? siteConfig.helmet : {};
-    router.use(helmet(opts));
-  }
-  if (siteConfig.favicon) {
-    router.use(favicon(path.resolve(configDir, siteConfig.favicon)));
-  }
+function toOpts(val) {
+  return typeof val === 'object' ? val : {};
+}
+
+function configureMiddleware(router, siteConfig) {
+  if (siteConfig.responseTime) router.use(responseTime(toOpts(siteConfig.responseTime)));
+  if (siteConfig.cors) router.use(cors(toOpts(siteConfig.cors)));
+  if (siteConfig.compression) router.use(compression(toOpts(siteConfig.compression)));
+  if (siteConfig.helmet) router.use(helmet(toOpts(siteConfig.helmet)));
+  if (siteConfig.favicon) router.use(favicon(path.resolve(configDir, siteConfig.favicon)));
   if (siteConfig.healthCheck) {
     const hcPath =
       (typeof siteConfig.healthCheck === 'object' && siteConfig.healthCheck.path) || '/__health__';
@@ -371,14 +358,8 @@ function configureMiddleware(router, siteConfig, p) {
       res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
     });
   }
-  if (siteConfig.rateLimit) {
-    const opts = typeof siteConfig.rateLimit === 'object' ? siteConfig.rateLimit : {};
-    router.use(rateLimit(opts));
-  }
-  if (siteConfig.basicAuth) {
-    const opts = typeof siteConfig.basicAuth === 'object' ? siteConfig.basicAuth : {};
-    router.use(basicAuth(opts));
-  }
+  if (siteConfig.rateLimit) router.use(rateLimit(toOpts(siteConfig.rateLimit)));
+  if (siteConfig.basicAuth) router.use(basicAuth(toOpts(siteConfig.basicAuth)));
   if (siteConfig.headers) {
     router.use((_req, res, next) => {
       for (const h of Object.keys(siteConfig.headers)) res.setHeader(h, siteConfig.headers[h]);
@@ -421,8 +402,12 @@ function setupCgi(router, siteConfig, p, configDir) {
       const ext = path.extname(scriptPath);
       if (!cgiExts.has(ext)) return next();
       let scriptStat;
-      try { scriptStat = fs.statSync(scriptPath); } catch { return next(); }
-      if (!scriptStat.isFile()) return next();
+      try {
+        scriptStat = fs.lstatSync(scriptPath);
+      } catch {
+        return next();
+      }
+      if (!scriptStat.isFile() || scriptStat.isSymbolicLink()) return next();
 
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
       const env = {
@@ -460,6 +445,12 @@ function setupCgi(router, siteConfig, p, configDir) {
           res.write(chunk);
         } else {
           rawBuf += chunk.toString('binary');
+          if (rawBuf.length > 65536) {
+            child.stdout.destroy();
+            child.kill();
+            res.status(500).send('CGI headers too large');
+            return;
+          }
           const m = /\r?\n\r?\n/.exec(rawBuf);
           if (m) {
             const rawHeaders = rawBuf.substring(0, m.index);
@@ -578,18 +569,24 @@ function setupHotReload(app, portConfigs, p) {
     res.send(hotReloadClientJs);
   });
 
-  const watchPaths = [
-    ...new Set(portConfigs.flatMap((c) => collectFolderPaths(c.folders || []))),
-  ];
+  const watchPaths = [...new Set(portConfigs.flatMap((c) => collectFolderPaths(c.folders || [])))];
   for (const folder of watchPaths) {
     const absPath = path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder);
     if (fs.existsSync(absPath)) {
-      fs.watch(absPath, { recursive: true }, () => {
+      const onChange = () => {
         clearTimeout(reloadTimer);
         reloadTimer = setTimeout(() => {
           for (const client of sseClients) client.write('data: reload\n\n');
         }, 100);
-      });
+      };
+      try {
+        fs.watch(absPath, { recursive: true }, onChange);
+      } catch {
+        console.warn(
+          `[hot-reload] recursive watch not supported on this platform, falling back for ${absPath}`,
+        );
+        fs.watch(absPath, onChange);
+      }
     }
   }
   console.log(`[hot-reload] watching ${watchPaths.length} folder(s) on port ${p}`);
@@ -633,19 +630,21 @@ configsByPort.forEach((portConfigs, p) => {
     const router = express.Router();
     console.log(`[host] ${siteHost} → :${p}`);
     configureLogging(router, siteConfig, configDir);
-    configureMiddleware(router, siteConfig, p);
+    configureMiddleware(router, siteConfig);
     if (siteConfig.redirects) setupRedirects(router, siteConfig.redirects);
     if (siteConfig.folders) addStaticFolder(router, p, null, siteConfig.folders);
     setupCgi(router, siteConfig, p, configDir);
     setupUpload(router, siteConfig, configDir);
     if (siteConfig.proxy) addProxy(router, p, null, siteConfig.proxy);
     if (siteConfig.unhandled) {
-      router.use((req, res, _next) => {
-        Object.keys(siteConfig.unhandled).forEach((acceptName) => {
+      router.use((req, res, next) => {
+        for (const [acceptName, acceptConfig] of Object.entries(siteConfig.unhandled)) {
           if (!acceptName || acceptName === '*' || acceptName === '**' || req.accepts(acceptName)) {
-            unhandled(res, siteConfig.unhandled[acceptName]);
+            unhandled(res, acceptConfig);
+            return;
           }
-        });
+        }
+        next();
       });
     }
     if (siteHost === '*') {
