@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -20,6 +22,8 @@ jobs:
   bump:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.compute.outputs.version }}
       bumped: ${{ steps.compute.outputs.bumped }}
@@ -49,6 +53,7 @@ jobs:
     needs: bump
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v5
@@ -71,6 +76,7 @@ jobs:
     needs: bump
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: write
     steps:
       - uses: actions/checkout@v5
@@ -94,6 +100,8 @@ jobs:
     needs: bump
     if: needs.bump.outputs.bumped == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
         with:

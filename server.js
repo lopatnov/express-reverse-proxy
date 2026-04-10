@@ -361,6 +361,7 @@ configsByPort.forEach((portConfigs, p) => {
   // Hot reload via SSE
   const hotReloadEnabled = portConfigs.some((c) => c.hotReload === true);
   if (hotReloadEnabled) {
+    const hotReloadClientJs = fs.readFileSync(path.join(__dirname, 'hot-reload-client.js'), 'utf8');
     const sseClients = new Set();
     let reloadTimer = null;
 
@@ -375,7 +376,7 @@ configsByPort.forEach((portConfigs, p) => {
 
     app.get('/__hot-reload__/client.js', (_req, res) => {
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-      res.sendFile(path.join(__dirname, 'hot-reload-client.js'));
+      res.send(hotReloadClientJs);
     });
 
     const watchPaths = [
@@ -503,7 +504,10 @@ configsByPort.forEach((portConfigs, p) => {
           if (!scriptPath.startsWith(cgiDirResolved + path.sep)) return next();
 
           const ext = path.extname(scriptPath);
-          if (!cgiExts.has(ext) || !fs.existsSync(scriptPath)) return next();
+          if (!cgiExts.has(ext)) return next();
+          let scriptStat;
+          try { scriptStat = fs.statSync(scriptPath); } catch { return next(); }
+          if (!scriptStat.isFile()) return next();
 
           const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
           const env = {
@@ -529,7 +533,7 @@ configsByPort.forEach((portConfigs, p) => {
           const interpreter = interps[ext];
           const command = interpreter || scriptPath;
           const args = interpreter ? [scriptPath] : [];
-          const child = spawn(command, args, { env, cwd: path.dirname(scriptPath) });
+          const child = spawn(command, args, { env, cwd: path.dirname(scriptPath), shell: false });
 
           child.stdin.on('error', (_err) => {});
           req.pipe(child.stdin);
