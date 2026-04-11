@@ -69,7 +69,7 @@ function exitError(msg, code = -1) {
 }
 
 function parseArguments(args) {
-  const argsNames = args.map((a) => a.name);
+  const argsNames = new Set(args.map((a) => a.name));
   return args.reduce((res, arg) => {
     const argIndex = process.argv.indexOf(arg.name);
     if (argIndex > -1) {
@@ -77,7 +77,7 @@ function parseArguments(args) {
       if (arg.subArgs) {
         arg.subArgs.forEach((subArg, index) => {
           const subArgIndex = argIndex + index + 1;
-          if (process.argv.length <= subArgIndex || argsNames.includes(process.argv[subArgIndex])) {
+          if (process.argv.length <= subArgIndex || argsNames.has(process.argv[subArgIndex])) {
             exitError(`Invalid argument ${arg.name}. Missing <${subArg}>.`, 16);
           }
           res[arg.name].args.push(process.argv[subArgIndex]);
@@ -490,6 +490,21 @@ function setupCgi(router, siteConfig, p, configDir) {
   }
 }
 
+function buildFileFilter(allowedTypes) {
+  if (!allowedTypes) return undefined;
+  return (_req, file, cb) => {
+    if (allowedTypes.has(file.mimetype)) cb(null, true);
+    else cb(Object.assign(new Error(`File type not allowed: ${file.mimetype}`), { status: 400 }));
+  };
+}
+
+function handleUploadResponse(req, res) {
+  if (!req.files?.length) return res.status(400).json({ error: 'No files uploaded' });
+  res.json({
+    files: req.files.map((f) => ({ file: f.filename, size: f.size, originalName: f.originalname })),
+  });
+}
+
 function setupUpload(router, siteConfig, configDir) {
   if (!siteConfig.upload) return;
   const uploadRaw = siteConfig.upload;
@@ -513,38 +528,16 @@ function setupUpload(router, siteConfig, configDir) {
       },
     });
 
-    const fileFilter = allowedTypes
-      ? (_req, file, cb) => {
-          if (allowedTypes.has(file.mimetype)) cb(null, true);
-          else
-            cb(
-              Object.assign(new Error(`File type not allowed: ${file.mimetype}`), {
-                status: 400,
-              }),
-            );
-        }
-      : undefined;
-
     const limits = {};
     if (uploadConfig.maxFileSize) limits.fileSize = uploadConfig.maxFileSize;
     if (uploadConfig.maxFiles) limits.files = uploadConfig.maxFiles;
 
-    const uploader = multer({ storage, limits, fileFilter });
+    const uploader = multer({ storage, limits, fileFilter: buildFileFilter(allowedTypes) });
     const multerMiddleware = uploadConfig.fieldName
       ? uploader.array(uploadConfig.fieldName)
       : uploader.any();
 
-    router.post(uploadUrlPath, multerMiddleware, (req, res) => {
-      if (!req.files?.length) return res.status(400).json({ error: 'No files uploaded' });
-      res.json({
-        files: req.files.map((f) => ({
-          file: f.filename,
-          size: f.size,
-          originalName: f.originalname,
-        })),
-      });
-    });
-
+    router.post(uploadUrlPath, multerMiddleware, handleUploadResponse);
     router.use(uploadUrlPath, express.static(uploadDir));
     console.log(`[upload] POST ${uploadUrlPath} → ${uploadDir}`);
   }
