@@ -438,11 +438,13 @@ function setupCgi(router, siteConfig, p, configDir) {
       child.stdin.on('error', (_err) => {});
       req.pipe(child.stdin);
 
+      res.on('drain', () => child.stdout.resume());
+
       let headersParsed = false;
       let rawBuf = '';
       child.stdout.on('data', (chunk) => {
         if (headersParsed) {
-          res.write(chunk);
+          if (!res.write(chunk)) child.stdout.pause();
         } else {
           rawBuf += chunk.toString('binary');
           if (rawBuf.length > 65536) {
@@ -469,7 +471,7 @@ function setupCgi(router, siteConfig, p, configDir) {
               }
             }
             res.status(statusCode);
-            if (bodyStart.length) res.write(bodyStart);
+            if (bodyStart.length && !res.write(bodyStart)) child.stdout.pause();
           }
         }
       });
