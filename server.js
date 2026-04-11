@@ -484,9 +484,11 @@ function setupCgi(router, siteConfig, p, configDir) {
         }
       });
       child.stdout.on('end', () => {
-        if (res.headersSent) return;
-        if (headersParsed) res.end();
-        else res.status(500).send('CGI script produced no output');
+        if (headersParsed) {
+          res.end();
+        } else if (!res.headersSent) {
+          res.status(500).send('CGI script produced no output');
+        }
       });
       child.stderr.on('data', (data) => console.error(`[cgi] ${scriptPath}: ${data}`));
       child.on('error', (err) => {
@@ -531,7 +533,8 @@ function setupUpload(router, siteConfig, configDir) {
       destination: uploadDir,
       filename: (_req, file, cb) => {
         const ext = path.extname(file.originalname);
-        const base = path.basename(file.originalname, ext).replaceAll(/[^a-zA-Z0-9_.-]/g, '_');
+        const base =
+          path.basename(file.originalname, ext).replaceAll(/[^a-zA-Z0-9_.-]/g, '_') || 'file';
         cb(null, `${base}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
       },
     });
