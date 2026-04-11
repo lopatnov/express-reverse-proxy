@@ -269,14 +269,14 @@ If `server-config.json` already exists, the command asks before overwriting.
 
 Manage the PM2 process cluster. Action defaults to `start` when omitted.
 
-| Action    | Description                                            |
-| --------- | ------------------------------------------------------ |
-| `start`   | Start the cluster (default when action is omitted)     |
-| `stop`    | Stop all cluster instances                             |
-| `restart` | Restart all cluster instances                          |
-| `status`  | Show PM2 process status table                          |
-| `logs`    | Stream the last 200 log lines                          |
-| `monitor` | Open the PM2 real-time monitor                         |
+| Action    | Description                                        |
+| --------- | -------------------------------------------------- |
+| `start`   | Start the cluster (default when action is omitted) |
+| `stop`    | Stop all cluster instances                         |
+| `restart` | Restart all cluster instances                      |
+| `status`  | Show PM2 process status table                      |
+| `logs`    | Stream the last 200 log lines                      |
+| `monitor` | Open the PM2 real-time monitor                     |
 
 ```shell
 express-reverse-proxy --cluster              # same as --cluster start
@@ -325,10 +325,10 @@ Add a `$schema` reference to your config file to get property autocomplete, desc
 
 ### Environment variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8000` | Overrides the port when it is not set in the config file |
-| `NODE_ENV` | — | Passed through to PM2 env profiles (`env` / `env_development`) |
+| Variable   | Default | Description                                                    |
+| ---------- | ------- | -------------------------------------------------------------- |
+| `PORT`     | `8000`  | Overrides the port when it is not set in the config file       |
+| `NODE_ENV` | —       | Passed through to PM2 env profiles (`env` / `env_development`) |
 
 ### port
 
@@ -383,10 +383,10 @@ Watches the `folders` directories for file changes and automatically reloads con
 
 The server exposes two endpoints when hot reload is enabled:
 
-| Endpoint | Description |
-| --------------------------------- | ------------------------------------------ |
-| `GET /__hot-reload__` | SSE stream — browsers subscribe here |
-| `GET /__hot-reload__/client.js` | Ready-to-use client script |
+| Endpoint                        | Description                          |
+| ------------------------------- | ------------------------------------ |
+| `GET /__hot-reload__`           | SSE stream — browsers subscribe here |
+| `GET /__hot-reload__/client.js` | Ready-to-use client script           |
 
 #### Connecting the client
 
@@ -399,7 +399,7 @@ The server exposes two endpoints when hot reload is enabled:
 **Option B — bundled project** (Vite, webpack, etc.): import the client module. The bundler resolves it through the package `exports` field:
 
 ```js
-import '@lopatnov/express-reverse-proxy/hot-reload-client';
+import "@lopatnov/express-reverse-proxy/hot-reload-client";
 ```
 
 Both options connect to `/__hot-reload__` and call `location.reload()` when a file change is detected. The connection is re-established automatically after 3 seconds if the server restarts.
@@ -446,11 +446,11 @@ Permanently or temporarily redirect URL paths to new destinations. Redirects are
 }
 ```
 
-| Field    | Default | Description                                              |
-| -------- | ------- | -------------------------------------------------------- |
-| `from`   | —       | Source URL path *(array form only, required)*            |
-| `to`     | —       | Destination path or full URL *(required)*                |
-| `status` | `301`   | HTTP redirect status: `301`, `302`, `307`, or `308`      |
+| Field    | Default | Description                                         |
+| -------- | ------- | --------------------------------------------------- |
+| `from`   | —       | Source URL path _(array form only, required)_       |
+| `to`     | —       | Destination path or full URL _(required)_           |
+| `status` | `301`   | HTTP redirect status: `301`, `302`, `307`, or `308` |
 
 > `301` — Moved Permanently. `302` — Found (temporary). Use `301` for permanent URL changes and `302` for temporary ones.
 
@@ -538,7 +538,11 @@ Forward requests to a back-end server. Supports three forms:
 ```json
 {
   "proxy": {
-    "/api": ["http://backend1:3000", "http://backend2:3000", "http://backend3:3000"]
+    "/api": [
+      "http://backend1:3000",
+      "http://backend2:3000",
+      "http://backend3:3000"
+    ]
   }
 }
 ```
@@ -629,8 +633,8 @@ Enable HTTPS on a port by adding an `ssl` object to any site config for that por
 | ---------- | --------- | -------------------------------------------------------- |
 | `key`      | `string`  | Path to the private key file (PEM format)                |
 | `cert`     | `string`  | Path to the certificate file (PEM format)                |
-| `ca`       | `string`  | *(optional)* Path to the CA bundle for client validation |
-| `redirect` | `integer` | *(optional)* HTTP port to redirect (301) to HTTPS        |
+| `ca`       | `string`  | _(optional)_ Path to the CA bundle for client validation |
+| `redirect` | `integer` | _(optional)_ HTTP port to redirect (301) to HTTPS        |
 
 Paths are resolved **relative to the config file**, not the current working directory.
 
@@ -780,11 +784,11 @@ Limit the number of requests a client can make in a time window. Responds with `
 }
 ```
 
-| Option      | Default  | Description                                      |
-| ----------- | -------- | ------------------------------------------------ |
-| `windowMs`  | `60000`  | Time window in milliseconds                      |
-| `limit`     | `5`      | Maximum requests per client per window           |
-| `message`   | built-in | Response body when limit is exceeded             |
+| Option     | Default  | Description                            |
+| ---------- | -------- | -------------------------------------- |
+| `windowMs` | `60000`  | Time window in milliseconds            |
+| `limit`    | `5`      | Maximum requests per client per window |
+| `message`  | built-in | Response body when limit is exceeded   |
 
 See [express-rate-limit docs](https://express-rate-limit.mintlify.app/reference/configuration) for all options.
 
@@ -805,11 +809,11 @@ Protect the site with HTTP Basic Authentication. All requests must include valid
 }
 ```
 
-| Option      | Default | Description                                                  |
-| ----------- | ------- | ------------------------------------------------------------ |
-| `users`     | —       | Object mapping username → password *(required)*              |
+| Option      | Default | Description                                                    |
+| ----------- | ------- | -------------------------------------------------------------- |
+| `users`     | —       | Object mapping username → password _(required)_                |
 | `challenge` | `false` | Send `WWW-Authenticate` header to trigger browser login dialog |
-| `realm`     | —       | Realm string shown in the browser login dialog               |
+| `realm`     | —       | Realm string shown in the browser login dialog                 |
 
 See [express-basic-auth docs](https://github.com/LionC/express-basic-auth#options) for all options.
 
@@ -841,8 +845,8 @@ Custom path:
 }
 ```
 
-| Option | Default        | Description                      |
-| ------ | -------------- | -------------------------------- |
+| Option | Default         | Description                     |
+| ------ | --------------- | ------------------------------- |
 | `path` | `"/__health__"` | URL path of the health endpoint |
 
 > The health check endpoint is placed before rate limiting and basic auth — it is always publicly accessible regardless of other authentication settings.
@@ -867,12 +871,12 @@ Execute server-side scripts using the CGI (Common Gateway Interface) protocol. W
 }
 ```
 
-| Option         | Default                               | Description                                                          |
-| -------------- | ------------------------------------- | -------------------------------------------------------------------- |
-| `path`         | `"/cgi-bin"`                          | URL prefix that triggers CGI dispatch                                |
-| `dir`          | `"./cgi-bin"`                         | Local directory containing scripts (resolved relative to config file)|
-| `extensions`   | `[".cgi", ".pl", ".py", ".sh"]`       | File extensions treated as executable CGI scripts                    |
-| `interpreters` | `{}`                                  | Map of file extension → interpreter command                          |
+| Option         | Default                         | Description                                                           |
+| -------------- | ------------------------------- | --------------------------------------------------------------------- |
+| `path`         | `"/cgi-bin"`                    | URL prefix that triggers CGI dispatch                                 |
+| `dir`          | `"./cgi-bin"`                   | Local directory containing scripts (resolved relative to config file) |
+| `extensions`   | `[".cgi", ".pl", ".py", ".sh"]` | File extensions treated as executable CGI scripts                     |
+| `interpreters` | `{}`                            | Map of file extension → interpreter command                           |
 
 Shorthand — point directly to the script directory (all defaults apply):
 
@@ -884,18 +888,18 @@ Shorthand — point directly to the script directory (all defaults apply):
 
 CGI environment variables set for every request:
 
-| Variable          | Value                                                    |
-| ----------------- | -------------------------------------------------------- |
-| `REQUEST_METHOD`  | HTTP method (`GET`, `POST`, …)                           |
-| `QUERY_STRING`    | URL query string (without `?`)                           |
-| `CONTENT_TYPE`    | `Content-Type` request header                            |
-| `CONTENT_LENGTH`  | `Content-Length` request header                          |
-| `SCRIPT_FILENAME` | Absolute path to the script file                         |
-| `SCRIPT_NAME`     | URL path to the script (e.g. `/cgi-bin/hello.py`)        |
-| `SERVER_NAME`     | Requested hostname                                       |
-| `SERVER_PORT`     | Server listen port                                       |
-| `REMOTE_ADDR`     | Client IP address                                        |
-| `HTTP_*`          | All request headers (e.g. `HTTP_ACCEPT`, `HTTP_HOST`)    |
+| Variable          | Value                                                 |
+| ----------------- | ----------------------------------------------------- |
+| `REQUEST_METHOD`  | HTTP method (`GET`, `POST`, …)                        |
+| `QUERY_STRING`    | URL query string (without `?`)                        |
+| `CONTENT_TYPE`    | `Content-Type` request header                         |
+| `CONTENT_LENGTH`  | `Content-Length` request header                       |
+| `SCRIPT_FILENAME` | Absolute path to the script file                      |
+| `SCRIPT_NAME`     | URL path to the script (e.g. `/cgi-bin/hello.py`)     |
+| `SERVER_NAME`     | Requested hostname                                    |
+| `SERVER_PORT`     | Server listen port                                    |
+| `REMOTE_ADDR`     | Client IP address                                     |
+| `HTTP_*`          | All request headers (e.g. `HTTP_ACCEPT`, `HTTP_HOST`) |
 
 A minimal Python example (`cgi-bin/hello.py`):
 
@@ -960,39 +964,52 @@ Shorthand — directory only (all defaults apply):
 }
 ```
 
-| Option          | Default        | Description                                                              |
-| --------------- | -------------- | ------------------------------------------------------------------------ |
-| `path`          | `"/upload"`    | URL prefix for the upload endpoint                                       |
-| `dir`           | `"./uploads"`  | Save directory (resolved relative to the config file)                    |
-| `maxFileSize`   | none           | Maximum file size in bytes; responds with `413` when exceeded            |
-| `maxFiles`      | none           | Maximum number of files per request; responds with `400` when exceeded   |
-| `allowedTypes`  | none           | MIME type whitelist; responds with `400` when the type is not in the list|
-| `fieldName`     | any field      | Accept only files uploaded in this specific form field                   |
+| Option         | Default       | Description                                                               |
+| -------------- | ------------- | ------------------------------------------------------------------------- |
+| `path`         | `"/upload"`   | URL prefix for the upload endpoint                                        |
+| `dir`          | `"./uploads"` | Save directory (resolved relative to the config file)                     |
+| `maxFileSize`  | none          | Maximum file size in bytes; responds with `413` when exceeded             |
+| `maxFiles`     | none          | Maximum number of files per request; responds with `400` when exceeded    |
+| `allowedTypes` | none          | MIME type whitelist; responds with `400` when the type is not in the list |
+| `fieldName`    | any field     | Accept only files uploaded in this specific form field                    |
 
 **Array form** — multiple upload endpoints on the same site:
 
 ```json
 {
   "upload": [
-    { "path": "/photos", "dir": "./photos", "allowedTypes": ["image/jpeg", "image/png"] },
-    { "path": "/docs",   "dir": "./documents", "allowedTypes": ["application/pdf"], "maxFileSize": 5242880 }
+    {
+      "path": "/photos",
+      "dir": "./photos",
+      "allowedTypes": ["image/jpeg", "image/png"]
+    },
+    {
+      "path": "/docs",
+      "dir": "./documents",
+      "allowedTypes": ["application/pdf"],
+      "maxFileSize": 5242880
+    }
   ]
 }
 ```
 
 **HTTP interface:**
 
-| Method | URL              | Description                              |
-| ------ | ---------------- | ---------------------------------------- |
-| `POST` | `<path>`         | Upload files via `multipart/form-data`   |
-| `GET`  | `<path>/<name>`  | Retrieve a previously uploaded file      |
+| Method | URL             | Description                            |
+| ------ | --------------- | -------------------------------------- |
+| `POST` | `<path>`        | Upload files via `multipart/form-data` |
+| `GET`  | `<path>/<name>` | Retrieve a previously uploaded file    |
 
 `POST` success response (`200`):
 
 ```json
 {
   "files": [
-    { "file": "photo-1700000000000-123456789.jpg", "size": 45678, "originalName": "photo.jpg" }
+    {
+      "file": "photo-1700000000000-123456789.jpg",
+      "size": 45678,
+      "originalName": "photo.jpg"
+    }
   ]
 }
 ```
@@ -1186,9 +1203,9 @@ Redirect old URLs to new ones after a site restructure, without breaking existin
 {
   "port": 8080,
   "redirects": [
-    { "from": "/about.html",    "to": "/about",       "status": 301 },
-    { "from": "/products.html", "to": "/products",    "status": 301 },
-    { "from": "/blog/:slug",    "to": "/posts/:slug", "status": 301 }
+    { "from": "/about.html", "to": "/about", "status": 301 },
+    { "from": "/products.html", "to": "/products", "status": 301 },
+    { "from": "/blog/:slug", "to": "/posts/:slug", "status": 301 }
   ],
   "folders": "./public"
 }
@@ -1199,7 +1216,7 @@ Or as an object map for simple path-to-path redirects:
 ```json
 {
   "redirects": {
-    "/old-home":  "/",
+    "/old-home": "/",
     "/old-about": "/about",
     "/legacy-api": "https://api.example.com"
   }
@@ -1386,14 +1403,14 @@ express-reverse-proxy --cluster start --cluster-config ./my-ecosystem.config.cjs
 
 Run via npm scripts:
 
-| Script                  | Description                                                        |
-| ----------------------- | ------------------------------------------------------------------ |
-| `npm run pm2-start`     | Start cluster (max CPU cores); reads `server-config.json` from cwd |
-| `npm run pm2-restart`   | Restart all instances                                              |
-| `npm run pm2-stop`      | Stop all instances                                                 |
-| `npm run pm2-status`    | Show process status                                                |
-| `npm run pm2-logs`      | Show last 200 log lines                                            |
-| `npm run pm2-monitor`   | Open real-time monitor                                             |
+| Script                | Description                                                        |
+| --------------------- | ------------------------------------------------------------------ |
+| `npm run pm2-start`   | Start cluster (max CPU cores); reads `server-config.json` from cwd |
+| `npm run pm2-restart` | Restart all instances                                              |
+| `npm run pm2-stop`    | Stop all instances                                                 |
+| `npm run pm2-status`  | Show process status                                                |
+| `npm run pm2-logs`    | Show last 200 log lines                                            |
+| `npm run pm2-monitor` | Open real-time monitor                                             |
 
 Or use the CLI directly:
 

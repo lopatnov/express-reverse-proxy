@@ -67,6 +67,46 @@ describe('Reverse proxy routing', () => {
     });
   });
 
+  context('Array-of-objects proxy config (:8084)', () => {
+    it('routes /api/* to Users API via array proxy entry', () => {
+      cy.request('http://localhost:8084/api/users').then((res) => {
+        expect(res.status).to.eq(200);
+        expect(res.body).to.be.an('array');
+        expect(res.body[0]).to.have.property('name');
+      });
+    });
+
+    it('routes /api/users/1 to Users API and returns Alice', () => {
+      cy.request('http://localhost:8084/api/users/1').then((res) => {
+        expect(res.status).to.eq(200);
+        expect(res.body).to.include({ id: 1, name: 'Alice' });
+      });
+    });
+
+    it('routes /store/* to Products API via second array proxy entry', () => {
+      cy.request('http://localhost:8084/store/products').then((res) => {
+        expect(res.status).to.eq(200);
+        expect(res.body).to.be.an('array');
+        expect(res.body[0]).to.have.property('name');
+      });
+    });
+
+    it('routes /store/products/1 to Products API and returns Widget', () => {
+      cy.request('http://localhost:8084/store/products/1').then((res) => {
+        expect(res.status).to.eq(200);
+        expect(res.body).to.include({ id: 1, name: 'Widget' });
+      });
+    });
+
+    it('second array entry does not handle /api/* paths', () => {
+      cy.request({ url: 'http://localhost:8084/store/users', failOnStatusCode: false }).then(
+        (res) => {
+          expect(res.status).to.not.eq(200);
+        },
+      );
+    });
+  });
+
   context('UI interaction', () => {
     it('Client A: clicking Send request loads users JSON', () => {
       cy.visit('http://localhost:8080');

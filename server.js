@@ -316,7 +316,7 @@ function addMappedProxy(router, port, localRootPath, pathPairs) {
 
 function addProxies(router, port, localRootPath, proxies) {
   proxies.forEach((proxyUrl) => {
-    addRemoteProxy(router, port, localRootPath, proxyUrl);
+    addProxy(router, port, localRootPath, proxyUrl);
   });
 }
 
