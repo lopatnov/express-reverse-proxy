@@ -477,8 +477,8 @@ function setupCgi(router, siteConfig, p, configDir) {
       });
       child.stdout.on('end', () => {
         if (res.headersSent) return;
-        if (!headersParsed) res.status(500).send('CGI script produced no output');
-        else res.end();
+        if (headersParsed) res.end();
+        else res.status(500).send('CGI script produced no output');
       });
       child.stderr.on('data', (data) => console.error(`[cgi] ${scriptPath}: ${data}`));
       child.on('error', (err) => {
