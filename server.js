@@ -382,6 +382,46 @@ function setupRedirects(router, redirects) {
   }
 }
 
+function buildCgiEnv(req, scriptPath, cgiUrlPath, p) {
+  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const env = {
+    ...process.env,
+    GATEWAY_INTERFACE: 'CGI/1.1',
+    SERVER_PROTOCOL: 'HTTP/1.1',
+    SERVER_SOFTWARE: 'express-reverse-proxy',
+    REQUEST_METHOD: req.method.toUpperCase(),
+    SCRIPT_FILENAME: scriptPath,
+    SCRIPT_NAME: cgiUrlPath + req.path,
+    PATH_INFO: '',
+    QUERY_STRING: url.search ? url.search.slice(1) : '',
+    REMOTE_ADDR: req.ip || '127.0.0.1',
+    CONTENT_TYPE: req.headers['content-type'] || '',
+    CONTENT_LENGTH: req.headers['content-length'] || '0',
+    SERVER_NAME: req.hostname || 'localhost',
+    SERVER_PORT: String(p),
+  };
+  for (const [k, v] of Object.entries(req.headers)) {
+    env[`HTTP_${k.toUpperCase().replaceAll('-', '_')}`] = Array.isArray(v) ? v.join(', ') : v;
+  }
+  return env;
+}
+
+function applyCgiHeaders(rawHeaders, res) {
+  let statusCode = 200;
+  for (const line of rawHeaders.split(/\r?\n/)) {
+    const colon = line.indexOf(':');
+    if (colon === -1) continue;
+    const name = line.substring(0, colon).trim();
+    const value = line.substring(colon + 1).trim();
+    if (name.toLowerCase() === 'status') {
+      statusCode = Number.parseInt(value, 10) || 200;
+    } else {
+      res.setHeader(name, value);
+    }
+  }
+  return statusCode;
+}
+
 function setupCgi(router, siteConfig, p, configDir) {
   if (!siteConfig.cgi) return;
   const cgiRaw = siteConfig.cgi;
@@ -409,27 +449,7 @@ function setupCgi(router, siteConfig, p, configDir) {
       }
       if (!scriptStat.isFile() || scriptStat.isSymbolicLink()) return next();
 
-      const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-      const env = {
-        ...process.env,
-        GATEWAY_INTERFACE: 'CGI/1.1',
-        SERVER_PROTOCOL: 'HTTP/1.1',
-        SERVER_SOFTWARE: 'express-reverse-proxy',
-        REQUEST_METHOD: req.method.toUpperCase(),
-        SCRIPT_FILENAME: scriptPath,
-        SCRIPT_NAME: cgiUrlPath + req.path,
-        PATH_INFO: '',
-        QUERY_STRING: url.search ? url.search.slice(1) : '',
-        REMOTE_ADDR: req.ip || '127.0.0.1',
-        CONTENT_TYPE: req.headers['content-type'] || '',
-        CONTENT_LENGTH: req.headers['content-length'] || '0',
-        SERVER_NAME: req.hostname || 'localhost',
-        SERVER_PORT: String(p),
-      };
-      for (const [k, v] of Object.entries(req.headers)) {
-        env[`HTTP_${k.toUpperCase().replaceAll('-', '_')}`] = Array.isArray(v) ? v.join(', ') : v;
-      }
-
+      const env = buildCgiEnv(req, scriptPath, cgiUrlPath, p);
       const interpreter = interps[ext];
       const command = interpreter || scriptPath;
       const args = interpreter ? [scriptPath] : [];
@@ -458,19 +478,7 @@ function setupCgi(router, siteConfig, p, configDir) {
             const rawHeaders = rawBuf.substring(0, m.index);
             const bodyStart = Buffer.from(rawBuf.substring(m.index + m[0].length), 'binary');
             headersParsed = true;
-            let statusCode = 200;
-            for (const line of rawHeaders.split(/\r?\n/)) {
-              const colon = line.indexOf(':');
-              if (colon === -1) continue;
-              const name = line.substring(0, colon).trim();
-              const value = line.substring(colon + 1).trim();
-              if (name.toLowerCase() === 'status') {
-                statusCode = Number.parseInt(value, 10) || 200;
-              } else {
-                res.setHeader(name, value);
-              }
-            }
-            res.status(statusCode);
+            res.status(applyCgiHeaders(rawHeaders, res));
             if (bodyStart.length && !res.write(bodyStart)) child.stdout.pause();
           }
         }
