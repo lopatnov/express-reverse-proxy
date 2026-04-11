@@ -75,6 +75,7 @@ const urls = [
   'http://localhost:8082/__health__',
   'http://localhost:8083/__health__',
   'http://localhost:8084/api/users',
+  'http://localhost:8085/users',
 ];
 
 try {

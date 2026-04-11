@@ -101,9 +101,32 @@ describe('Reverse proxy routing', () => {
     it('second array entry does not handle /api/* paths', () => {
       cy.request({ url: 'http://localhost:8084/store/users', failOnStatusCode: false }).then(
         (res) => {
-          expect(res.status).to.not.eq(200);
+          expect(res.status).to.eq(404);
         },
       );
+    });
+  });
+
+  context('Array-of-arrays proxy config — round-robin (:8085)', () => {
+    it('distributes requests across both backends', () => {
+      const statuses = [];
+      for (let n = 0; n < 4; n++) {
+        cy.request({ url: 'http://localhost:8085/users', failOnStatusCode: false }).then((res) => {
+          statuses.push(res.status);
+        });
+      }
+      cy.then(() => {
+        // server-a (4001) has GET /users → 200; server-b (4002) does not → 404
+        // round-robin must reach both backends within 4 requests
+        expect(statuses).to.include(200);
+        expect(statuses).to.include(404);
+      });
+    });
+
+    it('does not error out — proxy is reachable', () => {
+      cy.request({ url: 'http://localhost:8085/users', failOnStatusCode: false }).then((res) => {
+        expect(res.status).to.be.oneOf([200, 404]);
+      });
     });
   });
 
