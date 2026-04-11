@@ -474,6 +474,7 @@ function setupCgi(router, siteConfig, p, configDir) {
         }
       });
       child.stdout.on('end', () => {
+        if (res.headersSent) return;
         if (!headersParsed) res.status(500).send('CGI script produced no output');
         else res.end();
       });
@@ -638,8 +639,15 @@ configsByPort.forEach((portConfigs, p) => {
     if (siteConfig.proxy) addProxy(router, p, null, siteConfig.proxy);
     if (siteConfig.unhandled) {
       router.use((req, res, next) => {
-        for (const [acceptName, acceptConfig] of Object.entries(siteConfig.unhandled)) {
-          if (!acceptName || acceptName === '*' || acceptName === '**' || req.accepts(acceptName)) {
+        const entries = Object.entries(siteConfig.unhandled);
+        for (const [acceptName, acceptConfig] of entries) {
+          if (acceptName && acceptName !== '*' && acceptName !== '**' && req.accepts(acceptName)) {
+            unhandled(res, acceptConfig);
+            return;
+          }
+        }
+        for (const [acceptName, acceptConfig] of entries) {
+          if (!acceptName || acceptName === '*' || acceptName === '**') {
             unhandled(res, acceptConfig);
             return;
           }
