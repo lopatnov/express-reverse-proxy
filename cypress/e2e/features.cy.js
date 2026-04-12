@@ -100,3 +100,75 @@ describe('rateLimit', () => {
     });
   });
 });
+
+describe('upload', () => {
+  const url = 'http://localhost:8086/upload';
+  const boundary = '----TestBoundary123';
+
+  function multipart(files) {
+    return files
+      .map(
+        ({ name, content, type }) =>
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: ${type}\r\n\r\n${content}`,
+      )
+      .join('\r\n')
+      .concat(`\r\n--${boundary}--`);
+  }
+
+  it('returns 200 with file info on valid upload', () => {
+    cy.request({
+      method: 'POST',
+      url,
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      body: multipart([{ name: 'test.txt', content: 'hello', type: 'text/plain' }]),
+      failOnStatusCode: false,
+    }).then((res) => {
+      expect(res.status).to.eq(200);
+      expect(res.body.files).to.have.length(1);
+      expect(res.body.files[0].originalName).to.eq('test.txt');
+    });
+  });
+
+  it('returns 413 when file exceeds maxFileSize (1024 bytes)', () => {
+    cy.request({
+      method: 'POST',
+      url,
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      body: multipart([{ name: 'big.txt', content: 'x'.repeat(2048), type: 'text/plain' }]),
+      failOnStatusCode: false,
+    }).then((res) => {
+      expect(res.status).to.eq(413);
+      expect(res.body.error).to.be.a('string');
+    });
+  });
+
+  it('returns 400 when number of files exceeds maxFiles (2)', () => {
+    cy.request({
+      method: 'POST',
+      url,
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      body: multipart([
+        { name: 'a.txt', content: 'a', type: 'text/plain' },
+        { name: 'b.txt', content: 'b', type: 'text/plain' },
+        { name: 'c.txt', content: 'c', type: 'text/plain' },
+      ]),
+      failOnStatusCode: false,
+    }).then((res) => {
+      expect(res.status).to.eq(400);
+      expect(res.body.error).to.be.a('string');
+    });
+  });
+
+  it('returns 400 when file type is not in allowedTypes', () => {
+    cy.request({
+      method: 'POST',
+      url,
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      body: multipart([{ name: 'img.png', content: 'fakepng', type: 'image/png' }]),
+      failOnStatusCode: false,
+    }).then((res) => {
+      expect(res.status).to.eq(400);
+      expect(res.body.error).to.be.a('string');
+    });
+  });
+});
