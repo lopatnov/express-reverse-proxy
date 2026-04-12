@@ -360,10 +360,10 @@ Controls HTTP request logging (Morgan). Enabled by default (`dev` format). Set t
 }
 ```
 
-| Option   | Default      | Description                                                    |
-| -------- | ------------ | -------------------------------------------------------------- |
-| `format` | `"combined"` | Morgan format: `combined`, `common`, `dev`, `short`, or `tiny` |
-| `file`   | none         | Path to log file (relative to config file). Appended if exists |
+| Option   | Default                                 | Description                                                                                                                    |
+| -------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `format` | `"dev"` (console) / `"combined"` (file) | Morgan format: `combined`, `common`, `dev`, `short`, or `tiny`. Defaults to `"combined"` when `file` is set, `"dev"` otherwise |
+| `file`   | none                                    | Path to log file (relative to config file). Appended if exists                                                                 |
 
 When `file` is set, logs are written to the file only (not to the console).
 

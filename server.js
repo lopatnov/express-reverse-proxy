@@ -556,7 +556,14 @@ function setupUpload(router, siteConfig, configDir) {
       ? uploader.array(uploadConfig.fieldName)
       : uploader.any();
 
-    router.post(uploadUrlPath, multerMiddleware, handleUploadResponse);
+    router.post(uploadUrlPath, (req, res, next) => {
+      multerMiddleware(req, res, (err) => {
+        if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: err.message });
+        if (err?.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: err.message });
+        if (err) return next(err);
+        handleUploadResponse(req, res);
+      });
+    });
     router.use(uploadUrlPath, express.static(uploadDir));
     console.log(`[upload] POST ${uploadUrlPath} → ${uploadDir}`);
   }
