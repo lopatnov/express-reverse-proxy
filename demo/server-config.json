@@ -49,5 +49,13 @@
     "folders": "demo/client-a",
     "healthCheck": true,
     "rateLimit": { "windowMs": 10000, "limit": 3 }
+  },
+  {
+    "port": 8084,
+    "proxy": [{ "/api": "http://localhost:4001" }, { "/store": "http://localhost:4002" }]
+  },
+  {
+    "port": 8085,
+    "proxy": [["http://localhost:4001", "http://localhost:4002"]]
   }
 ]
