@@ -171,4 +171,20 @@ describe('upload', () => {
       expect(res.body.error).to.be.a('string');
     });
   });
+
+  it('returns 400 when field name does not match fieldName (LIMIT_UNEXPECTED_FILE)', () => {
+    const strictUrl = 'http://localhost:8086/upload-strict';
+    // fieldName is "file"; sending under "data" triggers LIMIT_UNEXPECTED_FILE
+    const body = `--${boundary}\r\nContent-Disposition: form-data; name="data"; filename="test.txt"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--${boundary}--`;
+    cy.request({
+      method: 'POST',
+      url: strictUrl,
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      body,
+      failOnStatusCode: false,
+    }).then((res) => {
+      expect(res.status).to.eq(400);
+      expect(res.body.error).to.be.a('string');
+    });
+  });
 });

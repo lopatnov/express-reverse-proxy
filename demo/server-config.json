@@ -60,12 +60,19 @@
   },
   {
     "port": 8086,
-    "upload": {
-      "path": "/upload",
-      "dir": "./demo/uploads",
-      "maxFileSize": 1024,
-      "maxFiles": 2,
-      "allowedTypes": ["text/plain"]
-    }
+    "upload": [
+      {
+        "path": "/upload",
+        "dir": "./uploads",
+        "maxFileSize": 1024,
+        "maxFiles": 2,
+        "allowedTypes": ["text/plain"]
+      },
+      {
+        "path": "/upload-strict",
+        "dir": "./uploads-strict",
+        "fieldName": "file"
+      }
+    ]
   }
 ]

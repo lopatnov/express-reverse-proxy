@@ -559,13 +559,15 @@ function setupUpload(router, siteConfig, configDir) {
 
     router.post(uploadUrlPath, (req, res, next) => {
       multerMiddleware(req, res, (err) => {
-        if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: err.message });
-        if (err?.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: err.message });
+        if (err instanceof multer.MulterError) {
+          const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+          return res.status(status).json({ error: err.message });
+        }
         if (err?.status || err?.statusCode) {
           return res.status(err.statusCode || err.status).json({ error: err.message });
         }
         if (err) return next(err);
-        handleUploadResponse(req, res);
+        return handleUploadResponse(req, res);
       });
     });
     router.use(uploadUrlPath, express.static(uploadDir));
