@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
+import { randomInt } from 'node:crypto';
 import fs from 'node:fs';
 import https from 'node:https';
 import path from 'node:path';
@@ -543,7 +544,7 @@ function setupUpload(router, siteConfig, configDir) {
         const ext = path.extname(file.originalname);
         const base =
           path.basename(file.originalname, ext).replaceAll(/[^a-zA-Z0-9_.-]/g, '_') || 'file';
-        cb(null, `${base}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+        cb(null, `${base}-${Date.now()}-${randomInt(0, 1_000_000_000)}${ext}`);
       },
     });
 
@@ -556,7 +557,19 @@ function setupUpload(router, siteConfig, configDir) {
       ? uploader.array(uploadConfig.fieldName)
       : uploader.any();
 
-    router.post(uploadUrlPath, multerMiddleware, handleUploadResponse);
+    router.post(uploadUrlPath, (req, res, next) => {
+      multerMiddleware(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+          const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+          return res.status(status).json({ error: err.message });
+        }
+        if (err?.status || err?.statusCode) {
+          return res.status(err.statusCode || err.status).json({ error: err.message });
+        }
+        if (err) return next(err);
+        return handleUploadResponse(req, res);
+      });
+    });
     router.use(uploadUrlPath, express.static(uploadDir));
     console.log(`[upload] POST ${uploadUrlPath} → ${uploadDir}`);
   }

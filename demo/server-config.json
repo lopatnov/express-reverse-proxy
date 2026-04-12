@@ -57,5 +57,22 @@
   {
     "port": 8085,
     "proxy": [["http://localhost:4001", "http://localhost:4002"]]
+  },
+  {
+    "port": 8086,
+    "upload": [
+      {
+        "path": "/upload",
+        "dir": "./uploads",
+        "maxFileSize": 1024,
+        "maxFiles": 2,
+        "allowedTypes": ["text/plain"]
+      },
+      {
+        "path": "/upload-strict",
+        "dir": "./uploads-strict",
+        "fieldName": "file"
+      }
+    ]
   }
 ]
