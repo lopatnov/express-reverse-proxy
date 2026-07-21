@@ -45,7 +45,7 @@ describe('cors', () => {
       url: 'http://localhost:8080',
       headers: { Origin: 'http://example.com' },
     }).then((res) => {
-      expect(res.headers['access-control-allow-origin']).to.exist;
+      expect(res.headers['access-control-allow-origin']).to.be.a('string');
     });
   });
 });
@@ -59,7 +59,7 @@ describe('helmet', () => {
 
   it('returns X-Frame-Options header', () => {
     cy.request('http://localhost:8080').then((res) => {
-      expect(res.headers['x-frame-options']).to.exist;
+      expect(res.headers['x-frame-options']).to.be.a('string');
     });
   });
 });
