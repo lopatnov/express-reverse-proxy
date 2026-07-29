@@ -239,6 +239,17 @@ for (const [p, group] of configsByPort) {
   }
 }
 
+// Validate: trustProxy applies to the whole port (one Express app), so site
+// configs sharing a port cannot declare conflicting values.
+for (const [p, group] of configsByPort) {
+  const trustProxyValues = new Set(
+    group.filter((c) => c.trustProxy !== undefined).map((c) => JSON.stringify(c.trustProxy)),
+  );
+  if (trustProxyValues.size > 1) {
+    exitError(`Port ${p}: conflicting trustProxy values across site configs on the same port.`, 1);
+  }
+}
+
 function collectFolderPaths(folders) {
   if (typeof folders === 'string') return [folders];
   if (Array.isArray(folders)) return folders.flatMap(collectFolderPaths);
