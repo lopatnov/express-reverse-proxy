@@ -311,8 +311,7 @@ function sanitizedForwardedHeaders(req, configuredHost) {
   // whether it also remembers to set X-Forwarded-Host.
   return {
     'x-forwarded-proto': req.protocol,
-    'x-forwarded-host':
-      configuredHost && configuredHost !== '*' ? configuredHost : req.headers.host || req.hostname,
+    'x-forwarded-host': configuredHost || req.headers.host || req.hostname,
     'x-forwarded-for': forwardedForChain(req),
   };
 }

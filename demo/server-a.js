@@ -21,6 +21,18 @@ app.get('/users/:id', (req, res) => {
   }
 });
 
+// Exercises the reverse proxy's forwarded-header sanitization: reports
+// exactly what this backend received, so tests can confirm client-supplied
+// X-Forwarded-* claims never survive the trip through the proxy.
+app.get('/echo-headers', (req, res) => {
+  res.json({
+    host: req.headers.host,
+    xForwardedHost: req.headers['x-forwarded-host'],
+    xForwardedProto: req.headers['x-forwarded-proto'],
+    xForwardedFor: req.headers['x-forwarded-for'],
+  });
+});
+
 const server = app.listen(4001, () => {
   console.log('[server-a] Users API → http://localhost:4001');
 });

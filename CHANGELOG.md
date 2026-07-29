@@ -1,5 +1,15 @@
 # Changelog
 
+## [5.1.0] — 2026-07-29
+
+### Security
+
+- **Forwarded-header sanitization**: `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-For` sent by a client are no longer relayed to proxy targets or CGI scripts as-is. They're rebuilt from values this proxy itself vouches for (the configured `host`, when set, plus the real connection's protocol and IP), closing an `X-Forwarded-Host` spoofing attack that could be used to poison password-reset links or OAuth redirects on a back-end that trusts that header.
+
+### New features
+
+- **`trustProxy`**: set `"trustProxy": 1` (or a boolean/string/array, matching Express's [`trust proxy`](https://expressjs.com/en/guide/behind-proxies.html)) when this instance itself sits behind another trusted reverse proxy or load balancer, so `X-Forwarded-Proto`/`X-Forwarded-For` from that upstream are honored instead of ignored. Conflicting values across site configs sharing a port fail startup with a clear error.
+
 ## [5.0.0] — 2026-02-24
 
 ### New features
