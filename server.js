@@ -303,9 +303,16 @@ function forwardedForChain(req) {
 }
 
 function sanitizedForwardedHeaders(req, configuredHost) {
+  // Host is intentionally never taken from req.hostname: with trustProxy
+  // enabled that would honor an inbound X-Forwarded-Host, which is only as
+  // trustworthy as the upstream proxy's own config. The literal Host header
+  // this proxy itself received has no such caveat — every well-behaved
+  // upstream (nginx, Caddy, ...) regenerates it per hop regardless of
+  // whether it also remembers to set X-Forwarded-Host.
   return {
     'x-forwarded-proto': req.protocol,
-    'x-forwarded-host': configuredHost && configuredHost !== '*' ? configuredHost : req.hostname,
+    'x-forwarded-host':
+      configuredHost && configuredHost !== '*' ? configuredHost : req.headers.host || req.hostname,
     'x-forwarded-for': forwardedForChain(req),
   };
 }

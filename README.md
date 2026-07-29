@@ -647,7 +647,7 @@ Express's [`trust proxy`](https://expressjs.com/en/guide/behind-proxies.html) se
 | `"loopback"`          | Trust connections from `127.0.0.1`, `::1`, etc. — for a proxy in front on the same host |
 | `"10.0.0.1"` / `["10.0.0.0/8"]` | Trust specific IPs or CIDR ranges                                       |
 
-When set, an incoming `X-Forwarded-Host`/`X-Forwarded-Proto`/`X-Forwarded-For` from within the trusted hop count/range is honored (via Express's `req.hostname`/`req.protocol`/`req.ips`) and re-forwarded — anything beyond that boundary is still ignored.
+When set, an incoming `X-Forwarded-Proto`/`X-Forwarded-For` from within the trusted hop count/range is honored (via Express's `req.protocol`/`req.ips`) and re-forwarded — anything beyond that boundary is still ignored. `X-Forwarded-Host` is the one exception: it's **never** taken from an inbound `X-Forwarded-Host`, trusted or not — only from the literal `Host` header this proxy itself received (or the configured [`host`](#host)), since that's the one value every upstream proxy regenerates on every hop regardless of whether it also remembers to set `X-Forwarded-Host` (see the Nginx example below).
 
 ### ssl
 
@@ -1476,6 +1476,7 @@ server {
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   X-Forwarded-Host  $host;
     }
 }
 ```
