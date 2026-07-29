@@ -284,11 +284,34 @@ function addStaticFolder(router, port, rootPath, folder) {
   }
 }
 
-function addRemoteProxy(router, port, urlPath, proxyServer) {
+// Never relay a client's own X-Forwarded-* claims verbatim (X-Forwarded-Host
+// spoofing enables password-reset-link poisoning and similar attacks on the
+// backend). Rebuild these headers from values this proxy itself vouches for.
+function forwardedForChain(req) {
+  return [...req.ips, req.socket.remoteAddress].filter(Boolean).join(', ');
+}
+
+function sanitizedForwardedHeaders(req, configuredHost) {
+  return {
+    'x-forwarded-proto': req.protocol,
+    'x-forwarded-host': configuredHost && configuredHost !== '*' ? configuredHost : req.hostname,
+    'x-forwarded-for': forwardedForChain(req),
+  };
+}
+
+function forwardedHeadersDecorator(configuredHost) {
+  return (proxyReqOpts, srcReq) => {
+    Object.assign(proxyReqOpts.headers, sanitizedForwardedHeaders(srcReq, configuredHost));
+    return proxyReqOpts;
+  };
+}
+
+function addRemoteProxy(router, port, urlPath, proxyServer, configuredHost) {
+  const proxyOptions = { proxyReqOptDecorator: forwardedHeadersDecorator(configuredHost) };
   if (Array.isArray(proxyServer)) {
     let i = 0;
     const targets = proxyServer;
-    const balancedProxy = proxy((_req) => targets[i++ % targets.length]);
+    const balancedProxy = proxy((_req) => targets[i++ % targets.length], proxyOptions);
     if (urlPath) {
       router.use(urlPath, balancedProxy);
     } else {
@@ -299,43 +322,43 @@ function addRemoteProxy(router, port, urlPath, proxyServer) {
     );
   } else {
     if (urlPath) {
-      router.use(urlPath, proxy(proxyServer));
+      router.use(urlPath, proxy(proxyServer, proxyOptions));
     } else {
-      router.use(proxy(proxyServer));
+      router.use(proxy(proxyServer, proxyOptions));
     }
     console.log(`[proxy] http://localhost:${port}${urlPath || ''} <===> ${proxyServer}`);
   }
 }
 
-function addMappedProxy(router, port, localRootPath, pathPairs) {
+function addMappedProxy(router, port, localRootPath, pathPairs, configuredHost) {
   const localPaths = Object.getOwnPropertyNames(pathPairs);
   localPaths.forEach((localPath) => {
     const localFullPath = (localRootPath || '') + localPath;
-    addRemoteProxy(router, port, localFullPath, pathPairs[localPath]);
+    addRemoteProxy(router, port, localFullPath, pathPairs[localPath], configuredHost);
   });
 }
 
-function addProxies(router, port, localRootPath, proxies) {
+function addProxies(router, port, localRootPath, proxies, configuredHost) {
   proxies.forEach((proxyUrl) => {
     if (
       Array.isArray(proxyUrl) &&
       proxyUrl.length > 0 &&
       proxyUrl.every((i) => typeof i === 'string')
     ) {
-      addRemoteProxy(router, port, localRootPath, proxyUrl);
+      addRemoteProxy(router, port, localRootPath, proxyUrl, configuredHost);
     } else {
-      addProxy(router, port, localRootPath, proxyUrl);
+      addProxy(router, port, localRootPath, proxyUrl, configuredHost);
     }
   });
 }
 
-function addProxy(router, port, localRootPath, remoteProxy) {
+function addProxy(router, port, localRootPath, remoteProxy, configuredHost) {
   if (typeof remoteProxy === 'string') {
-    addRemoteProxy(router, port, localRootPath, remoteProxy);
+    addRemoteProxy(router, port, localRootPath, remoteProxy, configuredHost);
   } else if (Array.isArray(remoteProxy)) {
-    addProxies(router, port, localRootPath, remoteProxy);
+    addProxies(router, port, localRootPath, remoteProxy, configuredHost);
   } else if (remoteProxy instanceof Object) {
-    addMappedProxy(router, port, localRootPath, remoteProxy);
+    addMappedProxy(router, port, localRootPath, remoteProxy, configuredHost);
   }
 }
 
@@ -391,7 +414,7 @@ function setupRedirects(router, redirects) {
   }
 }
 
-function buildCgiEnv(req, scriptPath, cgiUrlPath, p) {
+function buildCgiEnv(req, scriptPath, cgiUrlPath, p, configuredHost) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const env = {
     ...process.env,
@@ -412,6 +435,11 @@ function buildCgiEnv(req, scriptPath, cgiUrlPath, p) {
   for (const [k, v] of Object.entries(req.headers)) {
     env[`HTTP_${k.toUpperCase().replaceAll('-', '_')}`] = Array.isArray(v) ? v.join(', ') : v;
   }
+  // Overwrite whatever the client claimed — see sanitizedForwardedHeaders.
+  const forwarded = sanitizedForwardedHeaders(req, configuredHost);
+  env.HTTP_X_FORWARDED_PROTO = forwarded['x-forwarded-proto'];
+  env.HTTP_X_FORWARDED_HOST = forwarded['x-forwarded-host'];
+  env.HTTP_X_FORWARDED_FOR = forwarded['x-forwarded-for'];
   return env;
 }
 
@@ -431,7 +459,7 @@ function applyCgiHeaders(rawHeaders, res) {
   return statusCode;
 }
 
-function setupCgi(router, siteConfig, p, configDir) {
+function setupCgi(router, siteConfig, p, configDir, configuredHost) {
   if (!siteConfig.cgi) return;
   const cgiRaw = siteConfig.cgi;
   const cgiConfigs = Array.isArray(cgiRaw)
@@ -458,7 +486,7 @@ function setupCgi(router, siteConfig, p, configDir) {
       }
       if (!scriptStat.isFile() || scriptStat.isSymbolicLink()) return next();
 
-      const env = buildCgiEnv(req, scriptPath, cgiUrlPath, p);
+      const env = buildCgiEnv(req, scriptPath, cgiUrlPath, p, configuredHost);
       const interpreter = interps[ext];
       const command = interpreter || scriptPath;
       const args = interpreter ? [scriptPath] : [];
@@ -645,6 +673,14 @@ const servers = [];
 
 configsByPort.forEach((portConfigs, p) => {
   const app = express();
+
+  // Off by default: nothing beyond the direct socket is trusted, so
+  // req.hostname/protocol/ip (and the forwarded headers derived from them)
+  // ignore any X-Forwarded-* a client sends. Set trustProxy only when this
+  // instance genuinely sits behind another trusted proxy/load balancer.
+  const trustProxyConfig = portConfigs.find((c) => c.trustProxy !== undefined)?.trustProxy;
+  if (trustProxyConfig !== undefined) app.set('trust proxy', trustProxyConfig);
+
   setupHotReload(app, portConfigs, p);
 
   // Specific hosts first, catch-all last
@@ -655,15 +691,16 @@ configsByPort.forEach((portConfigs, p) => {
 
   sorted.forEach((siteConfig) => {
     const siteHost = siteConfig.host || '*';
+    const configuredHost = siteHost === '*' ? undefined : siteHost;
     const router = express.Router();
     console.log(`[host] ${siteHost} → :${p}`);
     configureLogging(router, siteConfig, configDir);
     configureMiddleware(router, siteConfig);
     if (siteConfig.redirects) setupRedirects(router, siteConfig.redirects);
     if (siteConfig.folders) addStaticFolder(router, p, null, siteConfig.folders);
-    setupCgi(router, siteConfig, p, configDir);
+    setupCgi(router, siteConfig, p, configDir, configuredHost);
     setupUpload(router, siteConfig, configDir);
-    if (siteConfig.proxy) addProxy(router, p, null, siteConfig.proxy);
+    if (siteConfig.proxy) addProxy(router, p, null, siteConfig.proxy, configuredHost);
     if (siteConfig.unhandled) {
       router.use((req, res, next) => {
         const entries = Object.entries(siteConfig.unhandled);

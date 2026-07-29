@@ -27,6 +27,15 @@
           "type": "string",
           "description": "Virtual host to match against the HTTP Host header. Use \"*\" or omit for catch-all."
         },
+        "trustProxy": {
+          "description": "Express 'trust proxy' setting. Set only when this instance itself sits behind another trusted reverse proxy/load balancer, so req.hostname/protocol/ip (and the X-Forwarded-* headers this proxy forwards) honor that proxy's chain instead of a client's own claims. Defaults to Express's default (false, i.e. nothing is trusted).",
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "integer" },
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
         "folders": {
           "$ref": "#/definitions/foldersOption",
           "description": "Static file serving. String, array, or path-mapped object."
