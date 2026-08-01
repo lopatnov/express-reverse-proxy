@@ -103,7 +103,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           token: ${{ secrets.BUMP_TOKEN }}
       - name: Push version bump to git
@@ -117,16 +117,17 @@ jobs:
           git push
 
   create-release:
-    needs: [bump, publish-github, push-version]
+    needs: [bump, publish-npm, publish-github, push-version]
     if: |
       always() &&
+      needs.publish-npm.result == 'success' &&
       needs.publish-github.result == 'success' &&
       (needs.push-version.result == 'success' || needs.push-version.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: master
           fetch-depth: 0
