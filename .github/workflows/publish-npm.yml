@@ -102,11 +102,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      sha: ${{ steps.push.outputs.sha }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           token: ${{ secrets.BUMP_TOKEN }}
       - name: Push version bump to git
+        id: push
         run: |
           TARGET="${{ needs.bump.outputs.version }}"
           npm version $TARGET --no-git-tag-version
@@ -115,3 +118,38 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore: bump to v$TARGET [skip ci]"
           git push
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+  create-release:
+    needs: [bump, publish-npm, publish-github, push-version]
+    if: |
+      always() &&
+      needs.publish-npm.result == 'success' &&
+      needs.publish-github.result == 'success' &&
+      (needs.push-version.result == 'success' || needs.push-version.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.push-version.outputs.sha || github.sha }}
+      - name: Tag and create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET="${{ needs.bump.outputs.version }}"
+          SHA="${{ needs.push-version.outputs.sha || github.sha }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TARGET" >/dev/null 2>&1; then
+            echo "Tag $TARGET already exists on origin"
+          else
+            git tag -a "$TARGET" -m "v$TARGET" "$SHA"
+            git push origin "$TARGET"
+          fi
+          if gh release view "$TARGET" >/dev/null 2>&1; then
+            echo "Release $TARGET already exists — skipping"
+          else
+            gh release create "$TARGET" --title "v$TARGET" --generate-notes
+          fi
