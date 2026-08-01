@@ -1,8 +1,8 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "5.0.14",
-  "description": "Node.js CLI tool to serve static front-end files with a reverse proxy for back-end APIs",
+  "version": "5.1.0",
+  "description": "Lightweight Node.js CLI tool to serve static front-end files and reverse-proxy API requests to a back-end server. Zero-config start, flexible JSON configuration, PM2 and Docker ready.",
   "type": "module",
   "author": "lopatnov",
   "main": "server.js",
@@ -27,7 +27,13 @@
     "cli",
     "static-server",
     "spa",
-    "development"
+    "development",
+    "https",
+    "load-balancing",
+    "pm2",
+    "docker",
+    "middleware",
+    "security"
   ],
   "scripts": {
     "start": "node ./server.js --config demo/server-config.json",

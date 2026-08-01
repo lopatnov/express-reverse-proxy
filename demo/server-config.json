@@ -59,6 +59,13 @@
     "proxy": [["http://localhost:4001", "http://localhost:4002"]]
   },
   {
+    "port": 8087,
+    "trustProxy": 1,
+    "proxy": {
+      "/api": "http://localhost:4001"
+    }
+  },
+  {
     "port": 8086,
     "upload": [
       {
