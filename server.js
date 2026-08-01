@@ -302,6 +302,19 @@ function forwardedForChain(req) {
   return [...req.ips, req.socket.remoteAddress].filter(Boolean).join(', ');
 }
 
+// req.hostname is trust-proxy-aware and, with trustProxy enabled, honors an
+// inbound X-Forwarded-Host — usable to pick the wrong site's router or spoof
+// a CGI script's SERVER_NAME. Mirrors Express's own Host-header parsing
+// (including the IPv6 literal bracket form) without ever consulting
+// X-Forwarded-Host, so it's safe for those internal decisions regardless of
+// trustProxy.
+function literalHostname(req) {
+  const host = req.headers.host || '';
+  const offset = host[0] === '[' ? host.indexOf(']') + 1 : 0;
+  const index = host.indexOf(':', offset);
+  return index !== -1 ? host.substring(0, index) : host;
+}
+
 function sanitizedForwardedHeaders(req, configuredHost) {
   // Host is intentionally never taken from req.hostname: with trustProxy
   // enabled that would honor an inbound X-Forwarded-Host, which is only as
@@ -446,7 +459,7 @@ function buildCgiEnv(req, scriptPath, cgiUrlPath, p, configuredHost) {
     REMOTE_ADDR: req.ip || '127.0.0.1',
     CONTENT_TYPE: req.headers['content-type'] || '',
     CONTENT_LENGTH: req.headers['content-length'] || '0',
-    SERVER_NAME: req.hostname || 'localhost',
+    SERVER_NAME: configuredHost || literalHostname(req) || 'localhost',
     SERVER_PORT: String(p),
   };
   for (const [k, v] of Object.entries(req.headers)) {
@@ -740,7 +753,7 @@ configsByPort.forEach((portConfigs, p) => {
       app.use(router);
     } else {
       app.use((req, res, next) => {
-        if (req.hostname === siteHost) router(req, res, next);
+        if (literalHostname(req) === siteHost) router(req, res, next);
         else next();
       });
     }

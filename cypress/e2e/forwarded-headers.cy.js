@@ -39,4 +39,15 @@ describe('Forwarded header sanitization', () => {
         .and.match(/(^|,\s*)(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)(,|$)/);
     });
   });
+
+  it('discards a spoofed X-Forwarded-Host even with trustProxy enabled', () => {
+    cy.request({
+      url: 'http://localhost:8087/api/echo-headers',
+      headers: { 'X-Forwarded-Host': 'evil-attacker.com' },
+    }).then((res) => {
+      expect(res.status).to.eq(200);
+      expect(res.body.xForwardedHost).to.eq('localhost:8087');
+      expect(res.body.xForwardedHost).not.to.contain('evil-attacker.com');
+    });
+  });
 });
