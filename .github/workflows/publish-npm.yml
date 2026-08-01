@@ -115,3 +115,30 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore: bump to v$TARGET [skip ci]"
           git push
+
+  create-release:
+    needs: [bump, publish-github, push-version]
+    if: |
+      always() &&
+      needs.publish-github.result == 'success' &&
+      (needs.push-version.result == 'success' || needs.push-version.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+      - name: Tag and create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET="${{ needs.bump.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TARGET" >/dev/null 2>&1; then
+            echo "Tag $TARGET already exists on origin — skipping release creation"
+            exit 0
+          fi
+          git tag -a "$TARGET" -m "v$TARGET"
+          git push origin "$TARGET"
+          gh release create "$TARGET" --title "v$TARGET" --generate-notes
