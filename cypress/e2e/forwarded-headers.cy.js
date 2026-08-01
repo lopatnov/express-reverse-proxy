@@ -34,7 +34,9 @@ describe('Forwarded header sanitization', () => {
       headers: { 'X-Forwarded-For': '203.0.113.9' },
     }).then((res) => {
       expect(res.status).to.eq(200);
-      expect(res.body.xForwardedFor).not.to.eq('203.0.113.9');
+      expect(res.body.xForwardedFor)
+        .to.be.a('string')
+        .and.match(/(^|,\s*)(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)(,|$)/);
     });
   });
 });

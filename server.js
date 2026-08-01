@@ -243,7 +243,7 @@ for (const [p, group] of configsByPort) {
 // configs sharing a port cannot declare conflicting values.
 for (const [p, group] of configsByPort) {
   const trustProxyValues = new Set(
-    group.filter((c) => c.trustProxy !== undefined).map((c) => JSON.stringify(c.trustProxy)),
+    group.map((c) => JSON.stringify(c.trustProxy === undefined ? false : c.trustProxy)),
   );
   if (trustProxyValues.size > 1) {
     exitError(`Port ${p}: conflicting trustProxy values across site configs on the same port.`, 1);
@@ -311,7 +311,7 @@ function sanitizedForwardedHeaders(req, configuredHost) {
   // whether it also remembers to set X-Forwarded-Host.
   return {
     'x-forwarded-proto': req.protocol,
-    'x-forwarded-host': configuredHost || req.headers.host || req.hostname,
+    'x-forwarded-host': configuredHost || req.headers.host,
     'x-forwarded-for': forwardedForChain(req),
   };
 }
