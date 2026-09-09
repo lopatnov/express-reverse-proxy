@@ -12,12 +12,8 @@ module.exports = {
     setupNodeEvents(on, config) {
       on('task', {
         touchCgiFile() {
-          const file = path.join(config.projectRoot, 'demo', 'cgi-bin', '.hot-reload-test.tmp');
-          try {
-            fs.writeFileSync(file, '');
-          } finally {
-            fs.rmSync(file, { force: true });
-          }
+          const file = path.join(config.projectRoot, 'demo', 'cgi-bin', 'test-worker.js');
+          fs.writeFileSync(file, fs.readFileSync(file));
           return null;
         },
       });
