@@ -547,6 +547,11 @@ function normalizeCgiConfigs(cgiRaw) {
   return [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
 }
 
+function collectCgiPaths(cgiRaw) {
+  if (!cgiRaw) return [];
+  return normalizeCgiConfigs(cgiRaw).map((cgiConfig) => cgiConfig.dir || './cgi-bin');
+}
+
 function createCgiRouteOptions(cgiConfig, configDir) {
   const cgiDir = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
   const interpreters = cgiConfig.interpreters || {};
@@ -829,6 +834,7 @@ function setupHotReload(app, portConfigs, p) {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
+    res.write(': connected\n\n');
     sseClients.add(res);
     req.on('close', () => sseClients.delete(res));
   });
@@ -838,10 +844,16 @@ function setupHotReload(app, portConfigs, p) {
     res.send(hotReloadClientJs);
   });
 
-  const watchPaths = [...new Set(portConfigs.flatMap((c) => collectFolderPaths(c.folders || [])))];
-  for (const folder of watchPaths) {
-    const absPath = path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder);
-    if (fs.existsSync(absPath)) {
+  const staticWatchPaths = portConfigs
+    .flatMap((config) => collectFolderPaths(config.folders || []))
+    .map((folder) => (path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder)));
+  const cgiWatchPaths = portConfigs
+    .flatMap((config) => collectCgiPaths(config.cgi))
+    .map((cgiDir) => path.resolve(configDir, cgiDir));
+  const watchPaths = [...new Set([...staticWatchPaths, ...cgiWatchPaths])];
+
+  for (const watchPath of watchPaths) {
+    if (fs.existsSync(watchPath)) {
       const onChange = () => {
         clearTimeout(reloadTimer);
         reloadTimer = setTimeout(() => {
@@ -849,16 +861,17 @@ function setupHotReload(app, portConfigs, p) {
         }, 100);
       };
       try {
-        fs.watch(absPath, { recursive: true }, onChange);
+        fs.watch(watchPath, { recursive: true }, onChange);
       } catch {
         console.warn(
-          `[hot-reload] recursive watch not supported on this platform, falling back for ${absPath}`,
+          `[hot-reload] recursive watch not supported on this platform, falling back for ${watchPath}`,
         );
-        fs.watch(absPath, onChange);
+        fs.watch(watchPath, onChange);
       }
     }
   }
-  console.log(`[hot-reload] watching ${watchPaths.length} folder(s) on port ${p}`);
+  const directoryLabel = watchPaths.length === 1 ? 'directory' : 'directories';
+  console.log(`[hot-reload] watching ${watchPaths.length} ${directoryLabel} on port ${p}`);
 }
 
 function unhandled(res, acceptConfig) {
