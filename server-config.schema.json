@@ -309,6 +309,8 @@
               },
               {
                 "type": "object",
+                "additionalProperties": false,
+                "required": ["type"],
                 "properties": {
                   "type": {
                     "type": "string",
@@ -320,7 +322,13 @@
                     "type": "string",
                     "description": "Interpreter command when operating in process mode."
                   }
-                }
+                },
+                "allOf": [
+                  {
+                    "if": { "properties": { "type": { "const": "worker" } } },
+                    "then": { "not": { "required": ["interpreter"] } }
+                  }
+                ]
               }
             ]
           },
