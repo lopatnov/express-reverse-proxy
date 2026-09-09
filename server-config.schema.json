@@ -290,6 +290,7 @@
         },
         "timeoutMs": {
           "type": "integer",
+          "minimum": 1,
           "description": "Script execution timeout in milliseconds. Returns 504 on timeout."
         },
         "extensions": {
