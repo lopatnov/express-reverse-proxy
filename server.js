@@ -490,12 +490,14 @@ function applyCgiHeaders(rawHeaders, res) {
   return statusCode;
 }
 
+function normalizeCgiConfigs(cgiRaw) {
+  if (Array.isArray(cgiRaw)) return cgiRaw;
+  return [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
+}
+
 function setupCgi(router, siteConfig, p, configDir, configuredHost) {
   if (!siteConfig.cgi) return;
-  const cgiRaw = siteConfig.cgi;
-  const cgiConfigs = Array.isArray(cgiRaw)
-    ? cgiRaw
-    : [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
+  const cgiConfigs = normalizeCgiConfigs(siteConfig.cgi);
 
   for (const cgiConfig of cgiConfigs) {
     const cgiDirResolved = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
