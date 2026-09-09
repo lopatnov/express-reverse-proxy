@@ -99,6 +99,6 @@
     }
   },
   "allowScripts": {
-    "cypress@16.0.0": true
+    "cypress": true
   }
 }
