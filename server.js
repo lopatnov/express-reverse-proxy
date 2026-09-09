@@ -1,26 +1,4 @@
 #!/usr/bin/env node
-import { spawn, spawnSync } from 'node:child_process';
-import { randomInt } from 'node:crypto';
-import fs from 'node:fs';
-import https from 'node:https';
-import path from 'node:path';
-import readline from 'node:readline/promises';
-import { fileURLToPath } from 'node:url';
-import { Worker } from 'node:worker_threads';
-import compression from 'compression';
-import cors from 'cors';
-import express from 'express';
-import basicAuth from 'express-basic-auth';
-import proxy from 'express-http-proxy';
-import rateLimit from 'express-rate-limit';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import multer from 'multer';
-import responseTime from 'response-time';
-import favicon from 'serve-favicon';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const possibleServerArgs = [
   {
@@ -123,6 +101,11 @@ if (serverArgs['--help']) {
 }
 
 if (serverArgs['--cluster']) {
+  const [{ spawnSync }, { default: path }, { fileURLToPath }] = await Promise.all([
+    import('node:child_process'),
+    import('node:path'),
+    import('node:url'),
+  ]);
   const clusterArgIndex = process.argv.indexOf('--cluster');
   const nextArg = process.argv[clusterArgIndex + 1];
   const validActions = ['start', 'stop', 'restart', 'status', 'logs', 'monitor'];
@@ -138,7 +121,7 @@ if (serverArgs['--cluster']) {
   const action = isAction ? nextArg : 'start';
   const ecosystemConfig = serverArgs['--cluster-config']
     ? path.resolve(process.cwd(), serverArgs['--cluster-config'].args[0])
-    : path.join(__dirname, 'ecosystem.config.cjs');
+    : fileURLToPath(new URL('ecosystem.config.cjs', import.meta.url));
   const cwd = process.cwd();
   const configPassthrough = serverArgs['--config']
     ? ['--', '--config', serverArgs['--config'].args[0]]
@@ -158,6 +141,11 @@ if (serverArgs['--cluster']) {
 }
 
 if (serverArgs['--init']) {
+  const [{ default: fs }, { default: path }, { default: readline }] = await Promise.all([
+    import('node:fs'),
+    import('node:path'),
+    import('node:readline/promises'),
+  ]);
   const configOut = path.resolve(process.cwd(), 'server-config.json');
   if (fs.existsSync(configOut)) {
     const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -180,6 +168,11 @@ if (serverArgs['--init']) {
   console.log(`[init] Created ${configOut}`);
   process.exit(0);
 }
+
+const [{ default: fs }, { default: path }] = await Promise.all([
+  import('node:fs'),
+  import('node:path'),
+]);
 
 let configFile = './server-config.json';
 if (serverArgs['--config']) {
@@ -250,6 +243,56 @@ for (const [p, group] of configsByPort) {
     exitError(`Port ${p}: conflicting trustProxy values across site configs on the same port.`, 1);
   }
 }
+
+// Load optional dependencies only for features enabled in the server configuration.
+// Express itself is the runtime's only unconditional external dependency.
+const [{ default: express }] = await Promise.all([import('express')]);
+let basicAuth;
+let compression;
+let cors;
+let favicon;
+let helmet;
+let https;
+let morgan;
+let multer;
+let proxy;
+let randomInt;
+let rateLimit;
+let responseTime;
+let spawn;
+let Worker;
+
+const hasEnabledConfig = (property) => configs.some((config) => Boolean(config[property]));
+
+if (hasEnabledConfig('proxy')) ({ default: proxy } = await import('express-http-proxy'));
+if (configs.some((config) => config.logging !== false))
+  ({ default: morgan } = await import('morgan'));
+if (hasEnabledConfig('responseTime')) ({ default: responseTime } = await import('response-time'));
+if (hasEnabledConfig('cors')) ({ default: cors } = await import('cors'));
+if (hasEnabledConfig('compression')) ({ default: compression } = await import('compression'));
+if (hasEnabledConfig('helmet')) ({ default: helmet } = await import('helmet'));
+if (hasEnabledConfig('favicon')) ({ default: favicon } = await import('serve-favicon'));
+if (hasEnabledConfig('rateLimit')) ({ default: rateLimit } = await import('express-rate-limit'));
+if (hasEnabledConfig('basicAuth')) ({ default: basicAuth } = await import('express-basic-auth'));
+if (hasEnabledConfig('upload')) {
+  [{ default: multer }, { randomInt }] = await Promise.all([
+    import('multer'),
+    import('node:crypto'),
+  ]);
+}
+if (hasEnabledConfig('cgi')) {
+  ({ spawn } = await import('node:child_process'));
+  const usesCgiWorker = configs.some((config) => {
+    const cgiConfigs = Array.isArray(config.cgi) ? config.cgi : [config.cgi];
+    return cgiConfigs.some((cgiConfig) =>
+      Object.values(cgiConfig?.interpreters || {}).some(
+        (interpreter) => interpreter?.type === 'worker',
+      ),
+    );
+  });
+  if (usesCgiWorker) ({ Worker } = await import('node:worker_threads'));
+}
+if (hasEnabledConfig('ssl')) ({ default: https } = await import('node:https'));
 
 function collectFolderPaths(folders) {
   if (typeof folders === 'string') return [folders];
@@ -774,7 +817,10 @@ function setupHotReload(app, portConfigs, p) {
   const hotReloadEnabled = portConfigs.some((c) => c.hotReload === true);
   if (!hotReloadEnabled) return;
 
-  const hotReloadClientJs = fs.readFileSync(path.join(__dirname, 'hot-reload-client.js'), 'utf8');
+  const hotReloadClientJs = fs.readFileSync(
+    new URL('hot-reload-client.js', import.meta.url),
+    'utf8',
+  );
   const sseClients = new Set();
   let reloadTimer = null;
 
