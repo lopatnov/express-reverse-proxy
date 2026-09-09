@@ -114,9 +114,7 @@ describe('hotReload', () => {
         }),
     );
 
-    cy.exec(
-      "node -e \"const fs = require('node:fs'); const file = 'demo/cgi-bin/.hot-reload-test.tmp'; fs.writeFileSync(file, ''); fs.rmSync(file);\"",
-    );
+    cy.task('touchCgiFile');
     cy.then(() => reloadEvent).should('eq', 'reload');
   });
 });
