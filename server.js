@@ -860,14 +860,19 @@ function setupHotReload(app, portConfigs, p) {
           for (const client of sseClients) client.write('data: reload\n\n');
         }, 100);
       };
+      let watcher;
       try {
-        fs.watch(watchPath, { recursive: true }, onChange);
+        watcher = fs.watch(watchPath, { recursive: true }, onChange);
       } catch {
         console.warn(
           `[hot-reload] recursive watch not supported on this platform, falling back for ${watchPath}`,
         );
-        fs.watch(watchPath, onChange);
+        watcher = fs.watch(watchPath, onChange);
       }
+      watcher.on('error', (err) => {
+        console.warn(`[hot-reload] watch error for ${watchPath}: ${err.message}`);
+        watcher.close();
+      });
     }
   }
   const directoryLabel = watchPaths.length === 1 ? 'directory' : 'directories';
