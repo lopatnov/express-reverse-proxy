@@ -886,7 +886,7 @@ Execute server-side scripts using the CGI (Common Gateway Interface) protocol or
     "path": "/cgi-bin",
     "dir": "./cgi-bin",
     "timeoutMs": 10000,
-    "extensions": [".pl", ".py", ".js"],
+    "extensions": [".pl", ".py", ".js", ".sh"],
     "interpreters": {
       ".js": { "type": "worker" }, // or ".js": "node"
       ".py": "python3",
