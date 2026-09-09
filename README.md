@@ -916,7 +916,7 @@ Shorthand — point directly to the script directory (all defaults apply):
 #### Execution Strategies
 
 - **Process mode (`type: "process"` or string interpreter)**: The default strategy. Spawns an external child process with the configured interpreter (e.g. `".py": "python3"` or `".py": { "type": "process", "interpreter": "python3" }`).
-- **Worker mode (`type: "worker"` for Node.js)**: Runs the `.js` script inside an isolated Node.js Worker Thread with direct stream piping.
+- **Worker mode (`type: "worker"` for Node.js)**: Runs the `.js` script in a Node.js Worker Thread inside the server process with direct stream piping. A worker thread is not a security sandbox. The script receives the server environment and runs with the server's privileges. Use worker mode only for trusted scripts.
   - The incoming HTTP request body is piped directly to `process.stdin` of the worker thread.
   - The worker writes CGI headers and streams output directly to `process.stdout`.
   - CGI environment variables are accessible via `process.env` and `workerData`.
