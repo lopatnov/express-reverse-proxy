@@ -372,7 +372,7 @@ When `file` is set, logs are written to the file only (not to the console).
 
 ### hotReload
 
-Watches the `folders` directories for file changes and automatically reloads connected browser tabs. Uses Server-Sent Events (SSE). Intended for local development only.
+Watches the `folders` directories and configured `cgi` directories for file changes, then automatically reloads connected browser tabs. Uses Server-Sent Events (SSE). Intended for local development only.
 
 ```json
 {

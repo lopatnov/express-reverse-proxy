@@ -1,7 +1,7 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "5.2.0",
+  "version": "5.3.0",
   "description": "Lightweight Node.js CLI tool to serve static front-end files and reverse-proxy API requests to a back-end server. Zero-config start, flexible JSON configuration, PM2 and Docker ready.",
   "type": "module",
   "author": "lopatnov",
@@ -81,16 +81,24 @@
     "express": "^5.2.1",
     "express-basic-auth": "^1.2.1",
     "express-http-proxy": "^2.1.2",
-    "express-rate-limit": "^8.5.2",
-    "helmet": "^8.2.0",
-    "morgan": "^1.11.0",
-    "multer": "^2.2.0",
-    "pm2": "^7.0.3",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "morgan": "^1.12.0",
+    "multer": "^2.3.0",
+    "pm2": "^7.0.4",
     "response-time": "^2.3.4",
     "serve-favicon": "^2.5.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
-    "cypress": "^15.18.0"
+    "cypress": "^16.0.0"
+  },
+  "overrides": {
+    "pm2": {
+      "js-yaml": "4.3.2"
+    }
+  },
+  "allowScripts": {
+    "cypress": true
   }
 }

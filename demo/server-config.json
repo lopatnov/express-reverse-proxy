@@ -1,6 +1,7 @@
 [
   {
     "port": 8080,
+    "hotReload": true,
     "folders": "demo/client-a",
     "proxy": {
       "/api": "http://localhost:4001"

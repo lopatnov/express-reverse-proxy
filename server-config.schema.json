@@ -106,7 +106,7 @@
         },
         "hotReload": {
           "type": "boolean",
-          "description": "Watch folders and push SSE reload events to connected browsers."
+          "description": "Watch static folders and CGI directories, then push SSE reload events to connected browsers."
         },
         "compression": {
           "description": "Enable gzip/deflate response compression via the compression package.",

@@ -1,26 +1,4 @@
 #!/usr/bin/env node
-import { spawn, spawnSync } from 'node:child_process';
-import { randomInt } from 'node:crypto';
-import fs from 'node:fs';
-import https from 'node:https';
-import path from 'node:path';
-import readline from 'node:readline/promises';
-import { fileURLToPath } from 'node:url';
-import { Worker } from 'node:worker_threads';
-import compression from 'compression';
-import cors from 'cors';
-import express from 'express';
-import basicAuth from 'express-basic-auth';
-import proxy from 'express-http-proxy';
-import rateLimit from 'express-rate-limit';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import multer from 'multer';
-import responseTime from 'response-time';
-import favicon from 'serve-favicon';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const possibleServerArgs = [
   {
@@ -123,6 +101,11 @@ if (serverArgs['--help']) {
 }
 
 if (serverArgs['--cluster']) {
+  const [{ spawnSync }, { default: path }, { fileURLToPath }] = await Promise.all([
+    import('node:child_process'),
+    import('node:path'),
+    import('node:url'),
+  ]);
   const clusterArgIndex = process.argv.indexOf('--cluster');
   const nextArg = process.argv[clusterArgIndex + 1];
   const validActions = ['start', 'stop', 'restart', 'status', 'logs', 'monitor'];
@@ -138,7 +121,7 @@ if (serverArgs['--cluster']) {
   const action = isAction ? nextArg : 'start';
   const ecosystemConfig = serverArgs['--cluster-config']
     ? path.resolve(process.cwd(), serverArgs['--cluster-config'].args[0])
-    : path.join(__dirname, 'ecosystem.config.cjs');
+    : fileURLToPath(new URL('ecosystem.config.cjs', import.meta.url));
   const cwd = process.cwd();
   const configPassthrough = serverArgs['--config']
     ? ['--', '--config', serverArgs['--config'].args[0]]
@@ -158,6 +141,11 @@ if (serverArgs['--cluster']) {
 }
 
 if (serverArgs['--init']) {
+  const [{ default: fs }, { default: path }, { default: readline }] = await Promise.all([
+    import('node:fs'),
+    import('node:path'),
+    import('node:readline/promises'),
+  ]);
   const configOut = path.resolve(process.cwd(), 'server-config.json');
   if (fs.existsSync(configOut)) {
     const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -180,6 +168,11 @@ if (serverArgs['--init']) {
   console.log(`[init] Created ${configOut}`);
   process.exit(0);
 }
+
+const [{ default: fs }, { default: path }] = await Promise.all([
+  import('node:fs'),
+  import('node:path'),
+]);
 
 let configFile = './server-config.json';
 if (serverArgs['--config']) {
@@ -250,6 +243,56 @@ for (const [p, group] of configsByPort) {
     exitError(`Port ${p}: conflicting trustProxy values across site configs on the same port.`, 1);
   }
 }
+
+// Load optional dependencies only for features enabled in the server configuration.
+// Express itself is the runtime's only unconditional external dependency.
+const { default: express } = await import('express');
+let basicAuth;
+let compression;
+let cors;
+let favicon;
+let helmet;
+let https;
+let morgan;
+let multer;
+let proxy;
+let randomInt;
+let rateLimit;
+let responseTime;
+let spawn;
+let Worker;
+
+const hasEnabledConfig = (property) => configs.some((config) => Boolean(config[property]));
+
+if (hasEnabledConfig('proxy')) ({ default: proxy } = await import('express-http-proxy'));
+if (configs.some((config) => config.logging !== false))
+  ({ default: morgan } = await import('morgan'));
+if (hasEnabledConfig('responseTime')) ({ default: responseTime } = await import('response-time'));
+if (hasEnabledConfig('cors')) ({ default: cors } = await import('cors'));
+if (hasEnabledConfig('compression')) ({ default: compression } = await import('compression'));
+if (hasEnabledConfig('helmet')) ({ default: helmet } = await import('helmet'));
+if (hasEnabledConfig('favicon')) ({ default: favicon } = await import('serve-favicon'));
+if (hasEnabledConfig('rateLimit')) ({ default: rateLimit } = await import('express-rate-limit'));
+if (hasEnabledConfig('basicAuth')) ({ default: basicAuth } = await import('express-basic-auth'));
+if (hasEnabledConfig('upload')) {
+  [{ default: multer }, { randomInt }] = await Promise.all([
+    import('multer'),
+    import('node:crypto'),
+  ]);
+}
+if (hasEnabledConfig('cgi')) {
+  ({ spawn } = await import('node:child_process'));
+  const usesCgiWorker = configs.some((config) => {
+    const cgiConfigs = Array.isArray(config.cgi) ? config.cgi : [config.cgi];
+    return cgiConfigs.some((cgiConfig) =>
+      Object.values(cgiConfig?.interpreters || {}).some(
+        (interpreter) => interpreter?.type === 'worker',
+      ),
+    );
+  });
+  if (usesCgiWorker) ({ Worker } = await import('node:worker_threads'));
+}
+if (hasEnabledConfig('ssl')) ({ default: https } = await import('node:https'));
 
 function collectFolderPaths(folders) {
   if (typeof folders === 'string') return [folders];
@@ -502,6 +545,11 @@ function applyCgiHeaders(rawHeaders, res) {
 function normalizeCgiConfigs(cgiRaw) {
   if (Array.isArray(cgiRaw)) return cgiRaw;
   return [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
+}
+
+function collectCgiPaths(cgiRaw) {
+  if (!cgiRaw) return [];
+  return normalizeCgiConfigs(cgiRaw).map((cgiConfig) => cgiConfig.dir || './cgi-bin');
 }
 
 function createCgiRouteOptions(cgiConfig, configDir) {
@@ -774,7 +822,10 @@ function setupHotReload(app, portConfigs, p) {
   const hotReloadEnabled = portConfigs.some((c) => c.hotReload === true);
   if (!hotReloadEnabled) return;
 
-  const hotReloadClientJs = fs.readFileSync(path.join(__dirname, 'hot-reload-client.js'), 'utf8');
+  const hotReloadClientJs = fs.readFileSync(
+    new URL('hot-reload-client.js', import.meta.url),
+    'utf8',
+  );
   const sseClients = new Set();
   let reloadTimer = null;
 
@@ -783,6 +834,7 @@ function setupHotReload(app, portConfigs, p) {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
+    res.write(': connected\n\n');
     sseClients.add(res);
     req.on('close', () => sseClients.delete(res));
   });
@@ -792,27 +844,39 @@ function setupHotReload(app, portConfigs, p) {
     res.send(hotReloadClientJs);
   });
 
-  const watchPaths = [...new Set(portConfigs.flatMap((c) => collectFolderPaths(c.folders || [])))];
-  for (const folder of watchPaths) {
-    const absPath = path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder);
-    if (fs.existsSync(absPath)) {
+  const staticWatchPaths = portConfigs
+    .flatMap((config) => collectFolderPaths(config.folders || []))
+    .map((folder) => (path.isAbsolute(folder) ? folder : path.join(process.cwd(), folder)));
+  const cgiWatchPaths = portConfigs
+    .flatMap((config) => collectCgiPaths(config.cgi))
+    .map((cgiDir) => path.resolve(configDir, cgiDir));
+  const watchPaths = [...new Set([...staticWatchPaths, ...cgiWatchPaths])];
+
+  for (const watchPath of watchPaths) {
+    if (fs.existsSync(watchPath)) {
       const onChange = () => {
         clearTimeout(reloadTimer);
         reloadTimer = setTimeout(() => {
           for (const client of sseClients) client.write('data: reload\n\n');
         }, 100);
       };
+      let watcher;
       try {
-        fs.watch(absPath, { recursive: true }, onChange);
+        watcher = fs.watch(watchPath, { recursive: true }, onChange);
       } catch {
         console.warn(
-          `[hot-reload] recursive watch not supported on this platform, falling back for ${absPath}`,
+          `[hot-reload] recursive watch not supported on this platform, falling back for ${watchPath}`,
         );
-        fs.watch(absPath, onChange);
+        watcher = fs.watch(watchPath, onChange);
       }
+      watcher.on('error', (err) => {
+        console.warn(`[hot-reload] watch error for ${watchPath}: ${err.message}`);
+        watcher.close();
+      });
     }
   }
-  console.log(`[hot-reload] watching ${watchPaths.length} folder(s) on port ${p}`);
+  const directoryLabel = watchPaths.length === 1 ? 'directory' : 'directories';
+  console.log(`[hot-reload] watching ${watchPaths.length} ${directoryLabel} on port ${p}`);
 }
 
 function unhandled(res, acceptConfig) {

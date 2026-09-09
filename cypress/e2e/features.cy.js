@@ -72,6 +72,53 @@ describe('compression', () => {
   });
 });
 
+describe('hotReload', () => {
+  it('publishes a reload event when a CGI file changes', () => {
+    let reloadEvent;
+
+    cy.visit('http://localhost:8080');
+    cy.window().then(
+      (win) =>
+        new Cypress.Promise((resolve, reject) => {
+          const source = new win.EventSource('/__hot-reload__');
+          const readyTimeout = win.setTimeout(() => {
+            source.close();
+            reject(new Error('Timed out connecting to the hot reload event stream'));
+          }, 5000);
+
+          source.onopen = () => {
+            win.clearTimeout(readyTimeout);
+            reloadEvent = new Cypress.Promise((resolveReload, rejectReload) => {
+              const reloadTimeout = win.setTimeout(() => {
+                source.close();
+                rejectReload(new Error('Timed out waiting for the hot reload event'));
+              }, 5000);
+              source.onmessage = (event) => {
+                win.clearTimeout(reloadTimeout);
+                source.close();
+                resolveReload(event.data);
+              };
+              source.onerror = () => {
+                win.clearTimeout(reloadTimeout);
+                source.close();
+                rejectReload(new Error('Hot reload event stream failed'));
+              };
+            });
+            resolve();
+          };
+          source.onerror = () => {
+            win.clearTimeout(readyTimeout);
+            source.close();
+            reject(new Error('Failed to connect to the hot reload event stream'));
+          };
+        }),
+    );
+
+    cy.task('touchCgiFile');
+    cy.then(() => reloadEvent).should('eq', 'reload');
+  });
+});
+
 describe('basicAuth', () => {
   it('returns 401 without credentials', () => {
     cy.request({ url: 'http://localhost:8082/', failOnStatusCode: false }).then((res) => {
