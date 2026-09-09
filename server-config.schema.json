@@ -296,7 +296,7 @@
         "extensions": {
           "type": "array",
           "items": { "type": "string" },
-          "default": [".pl", ".py", ".js"],
+          "default": [".pl", ".py", ".js", ".sh"],
           "description": "File extensions to treat as CGI scripts."
         },
         "interpreters": {

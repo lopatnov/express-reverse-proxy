@@ -640,12 +640,12 @@ Express's [`trust proxy`](https://expressjs.com/en/guide/behind-proxies.html) se
 }
 ```
 
-| Value                | Behavior                                                                          |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| omitted (default)    | Nothing is trusted — `X-Forwarded-*` sent upstream always reflects the real socket, ignoring anything a client claims |
-| `1` (or other number) | Trust that many hops from the edge (matches "one reverse proxy in front of me", e.g. the Nginx setup above) |
-| `"loopback"`          | Trust connections from `127.0.0.1`, `::1`, etc. — for a proxy in front on the same host |
-| `"10.0.0.1"` / `["10.0.0.0/8"]` | Trust specific IPs or CIDR ranges                                       |
+| Value                           | Behavior                                                                                                              |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| omitted (default)               | Nothing is trusted — `X-Forwarded-*` sent upstream always reflects the real socket, ignoring anything a client claims |
+| `1` (or other number)           | Trust that many hops from the edge (matches "one reverse proxy in front of me", e.g. the Nginx setup above)           |
+| `"loopback"`                    | Trust connections from `127.0.0.1`, `::1`, etc. — for a proxy in front on the same host                               |
+| `"10.0.0.1"` / `["10.0.0.0/8"]` | Trust specific IPs or CIDR ranges                                                                                     |
 
 When set, an incoming `X-Forwarded-Proto`/`X-Forwarded-For` from within the trusted hop count/range is honored (via Express's `req.protocol`/`req.ips`) and re-forwarded — anything beyond that boundary is still ignored. `X-Forwarded-Host` is the one exception: it's **never** taken from an inbound `X-Forwarded-Host`, trusted or not — only from the literal `Host` header this proxy itself received (or the configured [`host`](#host)), since that's the one value every upstream proxy regenerates on every hop regardless of whether it also remembers to set `X-Forwarded-Host` (see the Nginx example below).
 
@@ -897,13 +897,13 @@ Execute server-side scripts using the CGI (Common Gateway Interface) protocol or
 }
 ```
 
-| Option         | Default                         | Description                                                                                     |
-| -------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `dir`          | `"./cgi-bin"`                   | Local directory containing scripts (resolved relative to config file)                           |
-| `path`         | `` `/${dir-name}` ``                    | URL prefix that triggers CGI dispatch                                                           |
-| `timeoutMs`    | `undefined`                     | Execution timeout in milliseconds (returns HTTP 504 upon timeout and terminates worker/process) |
-| `extensions`   | `[".pl", ".py", ".js"]`         | File extensions treated as executable CGI scripts (defaults to interpreter keys if specified)   |
-| `interpreters` | `{}`                            | Map of file extension → interpreter command string or `{ type: "worker" \| "process", interpreter?: string }` |
+| Option         | Default                        | Description                                                                                                   |
+| -------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `dir`          | `"./cgi-bin"`                  | Local directory containing scripts (resolved relative to config file)                                         |
+| `path`         | `` `/${dir-name}` ``           | URL prefix that triggers CGI dispatch                                                                         |
+| `timeoutMs`    | `undefined`                    | Execution timeout in milliseconds (returns HTTP 504 upon timeout and terminates worker/process)               |
+| `extensions`   | `[".pl", ".py", ".js", ".sh"]` | File extensions treated as executable CGI scripts (defaults to interpreter keys if specified)                 |
+| `interpreters` | `{}`                           | Map of file extension → interpreter command string or `{ type: "worker" \| "process", interpreter?: string }` |
 
 Shorthand — point directly to the script directory (all defaults apply):
 
@@ -926,7 +926,9 @@ Minimal Node.js Worker Thread example (`cgi-bin/hello.js`):
 
 ```javascript
 process.stdout.write("Content-Type: text/plain\r\n\r\n");
-process.stdout.write(`Hello from CGI Worker! Method: ${process.env.REQUEST_METHOD}\n`);
+process.stdout.write(
+  `Hello from CGI Worker! Method: ${process.env.REQUEST_METHOD}\n`,
+);
 // Optionally stream incoming request body
 process.stdin.pipe(process.stdout);
 ```

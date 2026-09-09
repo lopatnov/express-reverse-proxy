@@ -506,7 +506,7 @@ function setupCgi(router, siteConfig, p, configDir, configuredHost) {
     const interps = cgiConfig.interpreters || {};
     const interpsKeys = Object.keys(interps);
     const cgiExts = new Set(
-      cgiConfig.extensions || (interpsKeys.length ? interpsKeys : ['.pl', '.py', '.js']),
+      cgiConfig.extensions || (interpsKeys.length ? interpsKeys : ['.pl', '.py', '.js', '.sh']),
     );
 
     router.use(cgiUrlPath, (req, res, next) => {
