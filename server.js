@@ -455,14 +455,23 @@ function buildCgiEnv(req, scriptPath, cgiUrlPath, p, configuredHost) {
     REQUEST_METHOD: req.method.toUpperCase(),
     SCRIPT_FILENAME: scriptPath,
     SCRIPT_NAME: cgiUrlPath + req.path,
-    PATH_INFO: '',
-    QUERY_STRING: url.search ? url.search.slice(1) : '',
-    REMOTE_ADDR: req.ip || null,
-    CONTENT_TYPE: req.headers['content-type'] || '',
-    CONTENT_LENGTH: req.headers['content-length'] || null,
-    SERVER_NAME: configuredHost || literalHostname(req) || 'localhost',
-    SERVER_PORT: String(p),
+    SERVER_NAME: configuredHost || literalHostname(req) || '',
   };
+  if (url.search) {
+    env.QUERY_STRING = url.search.slice(1);
+  }
+  if (req.ip) {
+    env.REMOTE_ADDR = req.ip;
+  }
+  if (req.headers['content-type']) {
+    env.CONTENT_TYPE = req.headers['content-type'];
+  }
+  if (req.headers['content-length']) {
+    env.CONTENT_LENGTH = req.headers['content-length'];
+  }
+  if (p) {
+    env.SERVER_PORT = String(p);
+  }
   for (const [k, v] of Object.entries(req.headers)) {
     env[`HTTP_${k.toUpperCase().replaceAll('-', '_')}`] = Array.isArray(v) ? v.join(', ') : v;
   }
