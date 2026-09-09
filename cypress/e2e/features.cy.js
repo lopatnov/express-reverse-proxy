@@ -188,3 +188,56 @@ describe('upload', () => {
     });
   });
 });
+
+describe('cgi', () => {
+  it('executes Node.js worker via GET /cgi-bin/test-worker.js', () => {
+    cy.request('http://localhost:8080/cgi-bin/test-worker.js').then((res) => {
+      expect(res.status).to.eq(200);
+      expect(res.headers['x-runtime']).to.eq('worker');
+      expect(res.body).to.include('Executed inside Worker Thread. Method: GET');
+    });
+  });
+
+  it('streams request body through Node.js worker via POST /cgi-bin/test-worker.js', () => {
+    cy.request({
+      method: 'POST',
+      url: 'http://localhost:8080/cgi-bin/test-worker.js',
+      body: 'streamed payload data',
+      headers: { 'Content-Type': 'text/plain' },
+    }).then((res) => {
+      expect(res.status).to.eq(200);
+      expect(res.headers['x-runtime']).to.eq('worker');
+      expect(res.body).to.include('Executed inside Worker Thread. Method: POST');
+      expect(res.body).to.include('streamed payload data');
+    });
+  });
+
+  it('executes traditional process CGI via GET /cgi-process/test-process.js', () => {
+    cy.request('http://localhost:8080/cgi-process/test-process.js?greeting=hello').then((res) => {
+      expect(res.status).to.eq(200);
+      expect(res.headers['x-runtime']).to.eq('process');
+      expect(res.body).to.include('Executed inside child process');
+      expect(res.body).to.include('greeting=hello');
+    });
+  });
+
+  it('executes Python process CGI via GET /cgi-bin/test-python.py', () => {
+    cy.request('http://localhost:8080/cgi-bin/test-python.py?name=John').then((res) => {
+      expect(res.status).to.eq(200);
+      expect(res.headers['x-runtime']).to.eq('python-process');
+      expect(res.body).to.include('Executed inside Python process');
+      expect(res.body).to.include('Query: name=John');
+    });
+  });
+
+  it('returns 504 on script timeout /cgi-bin/timeout-worker.js', () => {
+    cy.request({
+      url: 'http://localhost:8080/cgi-bin/timeout-worker.js',
+      failOnStatusCode: false,
+      timeout: 10000,
+    }).then((res) => {
+      expect(res.status).to.eq(504);
+      expect(res.body).to.eq('CGI Timeout');
+    });
+  });
+});

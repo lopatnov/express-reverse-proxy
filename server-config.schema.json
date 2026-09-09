@@ -288,16 +288,51 @@
           "type": "string",
           "description": "Directory with CGI scripts (relative to config file)."
         },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Script execution timeout in milliseconds. Returns 504 on timeout."
+        },
         "extensions": {
           "type": "array",
           "items": { "type": "string" },
-          "default": [".cgi", ".pl", ".py", ".sh"],
+          "default": [".pl", ".py", ".js", ".sh"],
           "description": "File extensions to treat as CGI scripts."
         },
         "interpreters": {
           "type": "object",
-          "additionalProperties": { "type": "string" },
-          "description": "Map of extension → interpreter command. Required on Windows."
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Command to invoke the interpreter in process mode."
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["process", "worker"],
+                    "default": "process",
+                    "description": "Execution strategy: 'process' (child process) or 'worker' (Node.js worker thread)."
+                  },
+                  "interpreter": {
+                    "type": "string",
+                    "description": "Interpreter command when operating in process mode."
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": { "properties": { "type": { "const": "worker" } } },
+                    "then": { "not": { "required": ["interpreter"] } }
+                  }
+                ]
+              }
+            ]
+          },
+          "description": "Map of extension → interpreter command string or runner configuration object."
         }
       }
     },

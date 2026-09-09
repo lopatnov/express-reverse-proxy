@@ -21,7 +21,26 @@
       "/old-page": "/",
       "/legacy": { "to": "/", "status": 302 }
     },
-    "compression": true
+    "compression": true,
+    "cgi": [
+      {
+        "path": "/cgi-bin",
+        "dir": "./cgi-bin",
+        "timeoutMs": 3000,
+        "interpreters": {
+          ".js": { "type": "worker" },
+          ".py": "python"
+        }
+      },
+      {
+        "path": "/cgi-process",
+        "dir": "./cgi-bin",
+        "timeoutMs": 3000,
+        "interpreters": {
+          ".js": { "type": "process", "interpreter": "node" }
+        }
+      }
+    ]
   },
   {
     "port": 8081,

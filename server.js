@@ -6,6 +6,7 @@ import https from 'node:https';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
+import { Worker } from 'node:worker_threads';
 import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
@@ -454,14 +455,23 @@ function buildCgiEnv(req, scriptPath, cgiUrlPath, p, configuredHost) {
     REQUEST_METHOD: req.method.toUpperCase(),
     SCRIPT_FILENAME: scriptPath,
     SCRIPT_NAME: cgiUrlPath + req.path,
-    PATH_INFO: '',
-    QUERY_STRING: url.search ? url.search.slice(1) : '',
-    REMOTE_ADDR: req.ip || '127.0.0.1',
-    CONTENT_TYPE: req.headers['content-type'] || '',
-    CONTENT_LENGTH: req.headers['content-length'] || '0',
-    SERVER_NAME: configuredHost || literalHostname(req) || 'localhost',
-    SERVER_PORT: String(p),
+    SERVER_NAME: configuredHost || literalHostname(req) || '',
   };
+  if (url.search) {
+    env.QUERY_STRING = url.search.slice(1);
+  }
+  if (req.ip) {
+    env.REMOTE_ADDR = req.ip;
+  }
+  if (req.headers['content-type']) {
+    env.CONTENT_TYPE = req.headers['content-type'];
+  }
+  if (req.headers['content-length']) {
+    env.CONTENT_LENGTH = req.headers['content-length'];
+  }
+  if (p) {
+    env.SERVER_PORT = String(p);
+  }
   for (const [k, v] of Object.entries(req.headers)) {
     env[`HTTP_${k.toUpperCase().replaceAll('-', '_')}`] = Array.isArray(v) ? v.join(', ') : v;
   }
@@ -489,81 +499,208 @@ function applyCgiHeaders(rawHeaders, res) {
   return statusCode;
 }
 
+function normalizeCgiConfigs(cgiRaw) {
+  if (Array.isArray(cgiRaw)) return cgiRaw;
+  return [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
+}
+
+function createCgiRouteOptions(cgiConfig, configDir) {
+  const cgiDir = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
+  const interpreters = cgiConfig.interpreters || {};
+  const configuredExtensions = cgiConfig.extensions || Object.keys(interpreters);
+  return {
+    cgiDir,
+    cgiUrlPath: cgiConfig.path || `/${path.basename(cgiDir)}`,
+    timeoutMs: cgiConfig.timeoutMs || cgiConfig.timeout,
+    interpreters,
+    extensions: new Set(
+      configuredExtensions.length ? configuredExtensions : ['.pl', '.py', '.js', '.sh'],
+    ),
+  };
+}
+
+function findCgiScript(cgiDir, extensions, requestPath) {
+  const scriptPath = path.resolve(cgiDir, `.${requestPath}`);
+  if (!scriptPath.startsWith(cgiDir + path.sep) || !extensions.has(path.extname(scriptPath))) {
+    return null;
+  }
+  try {
+    const stats = fs.lstatSync(scriptPath);
+    return stats.isFile() && !stats.isSymbolicLink() ? scriptPath : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCgiInterpreterConfig(interpreters, extension) {
+  const config = interpreters[extension];
+  if (typeof config === 'string') return { interpreter: config, type: 'process' };
+  return config || { type: 'process' };
+}
+
+function createCgiRunner(scriptPath, env, interpreterConfig) {
+  if (interpreterConfig.type === 'worker') {
+    const worker = new Worker(scriptPath, {
+      env,
+      workerData: env,
+      stdin: true,
+      stdout: true,
+      stderr: true,
+    });
+    return {
+      process: worker,
+      stdin: worker.stdin,
+      stdout: worker.stdout,
+      stderr: worker.stderr,
+      name: 'cgi-worker',
+      isWorker: true,
+      completionEvent: 'exit',
+      kill: () => worker.terminate().catch(() => {}),
+    };
+  }
+
+  const child = spawn(interpreterConfig.interpreter || process.execPath, [scriptPath], {
+    env,
+    cwd: path.dirname(scriptPath),
+    shell: false,
+  });
+  return {
+    process: child,
+    stdin: child.stdin,
+    stdout: child.stdout,
+    stderr: child.stderr,
+    name: 'cgi',
+    isWorker: false,
+    completionEvent: 'close',
+    kill: () => {
+      try {
+        child.kill();
+      } catch {}
+    },
+  };
+}
+
+function createCgiRequestState(res, timeoutMs) {
+  let finished = false;
+  let timer = null;
+  let kill = () => {};
+  const finish = () => {
+    if (finished) return false;
+    finished = true;
+    if (timer) clearTimeout(timer);
+    timer = null;
+    return true;
+  };
+
+  if (timeoutMs && timeoutMs > 0) {
+    timer = setTimeout(() => {
+      if (!finish()) return;
+      kill();
+      if (res.headersSent) res.end();
+      else res.status(504).send('CGI Timeout');
+    }, timeoutMs);
+  }
+
+  return { finish, isFinished: () => finished, setKill: (runnerKill) => (kill = runnerKill) };
+}
+
+function finishCgiWithError(state, res, message) {
+  if (res.headersSent || !state.finish()) return false;
+  res.status(500).send(message);
+  return true;
+}
+
+function monitorCgiRunner(runner, scriptPath, state, res) {
+  runner.process.on('error', (err) => {
+    const message = runner.isWorker
+      ? `CGI Worker error: ${err.message}`
+      : `CGI error: ${err.message}`;
+    const action = runner.isWorker ? 'error in' : 'spawn error for';
+    console.error(`[${runner.name}] ${action} ${scriptPath}: ${err.message}`);
+    if (finishCgiWithError(state, res, message) && runner.isWorker) runner.kill();
+  });
+
+  runner.process.on(runner.completionEvent, (code) => {
+    if (code === 0 || state.isFinished() || res.headersSent) return;
+    console.error(`[${runner.name}] ${scriptPath} exited with code ${code}`);
+    const message = runner.isWorker
+      ? `CGI Worker crashed with code ${code}`
+      : `CGI process exited with code ${code}`;
+    finishCgiWithError(state, res, message);
+  });
+}
+
+function pipeCgiOutput(runner, state, res) {
+  let headersParsed = false;
+  let rawBuffer = '';
+  const write = (data) => {
+    if (!res.write(data)) runner.stdout.pause();
+  };
+
+  runner.stdout.on('data', (chunk) => {
+    if (state.isFinished()) return;
+    if (headersParsed) return write(chunk);
+
+    rawBuffer += chunk.toString('binary');
+    if (rawBuffer.length > 65536) {
+      runner.stdout.destroy();
+      runner.kill();
+      finishCgiWithError(state, res, 'CGI headers too large');
+      return;
+    }
+
+    const separator = /\r?\n\r?\n/.exec(rawBuffer);
+    if (!separator) return;
+
+    const rawHeaders = rawBuffer.substring(0, separator.index);
+    const body = Buffer.from(rawBuffer.substring(separator.index + separator[0].length), 'binary');
+    headersParsed = true;
+    res.status(applyCgiHeaders(rawHeaders, res));
+    if (body.length) write(body);
+  });
+
+  runner.stdout.on('end', () => {
+    if (!state.finish()) return;
+    runner.kill();
+    if (headersParsed) res.end();
+    else if (!res.headersSent) res.status(500).send('CGI script produced no output');
+  });
+}
+
+function createCgiRequestHandler(options, p, configuredHost) {
+  return (req, res, next) => {
+    const scriptPath = findCgiScript(options.cgiDir, options.extensions, req.path);
+    if (!scriptPath) return next();
+
+    const interpreterConfig = getCgiInterpreterConfig(
+      options.interpreters,
+      path.extname(scriptPath),
+    );
+    const env = buildCgiEnv(req, scriptPath, options.cgiUrlPath, p, configuredHost);
+    const runner = createCgiRunner(scriptPath, env, interpreterConfig);
+    const state = createCgiRequestState(res, options.timeoutMs);
+    state.setKill(runner.kill);
+    monitorCgiRunner(runner, scriptPath, state, res);
+
+    if (runner.stderr) {
+      runner.stderr.on('data', (data) => console.error(`[${runner.name}] ${scriptPath}: ${data}`));
+    }
+    runner.stdin.on('error', () => {});
+    req.pipe(runner.stdin);
+    res.on('drain', () => runner.stdout.resume());
+    pipeCgiOutput(runner, state, res);
+
+    console.log(
+      `[${runner.name}] ${req.method} ${options.cgiUrlPath}${req.path} → ${scriptPath}${runner.isWorker ? ' (Thread)' : ''}`,
+    );
+  };
+}
+
 function setupCgi(router, siteConfig, p, configDir, configuredHost) {
   if (!siteConfig.cgi) return;
-  const cgiRaw = siteConfig.cgi;
-  const cgiConfigs = Array.isArray(cgiRaw)
-    ? cgiRaw
-    : [typeof cgiRaw === 'string' ? { dir: cgiRaw } : cgiRaw];
-
-  for (const cgiConfig of cgiConfigs) {
-    const cgiUrlPath = cgiConfig.path || '/cgi-bin';
-    const cgiDirResolved = path.resolve(configDir, cgiConfig.dir || './cgi-bin');
-    const cgiExts = new Set(cgiConfig.extensions || ['.cgi', '.pl', '.py', '.sh']);
-    const interps = cgiConfig.interpreters || {};
-
-    router.use(cgiUrlPath, (req, res, next) => {
-      const scriptPath = path.resolve(path.join(cgiDirResolved, req.path));
-      if (!scriptPath.startsWith(cgiDirResolved + path.sep)) return next();
-
-      const ext = path.extname(scriptPath);
-      if (!cgiExts.has(ext)) return next();
-      let scriptStat;
-      try {
-        scriptStat = fs.lstatSync(scriptPath);
-      } catch {
-        return next();
-      }
-      if (!scriptStat.isFile() || scriptStat.isSymbolicLink()) return next();
-
-      const env = buildCgiEnv(req, scriptPath, cgiUrlPath, p, configuredHost);
-      const interpreter = interps[ext];
-      const command = interpreter || scriptPath;
-      const args = interpreter ? [scriptPath] : [];
-      const child = spawn(command, args, { env, cwd: path.dirname(scriptPath), shell: false });
-
-      child.stdin.on('error', (_err) => {});
-      req.pipe(child.stdin);
-
-      res.on('drain', () => child.stdout.resume());
-
-      let headersParsed = false;
-      let rawBuf = '';
-      child.stdout.on('data', (chunk) => {
-        if (headersParsed) {
-          if (!res.write(chunk)) child.stdout.pause();
-        } else {
-          rawBuf += chunk.toString('binary');
-          if (rawBuf.length > 65536) {
-            child.stdout.destroy();
-            child.kill();
-            res.status(500).send('CGI headers too large');
-            return;
-          }
-          const m = /\r?\n\r?\n/.exec(rawBuf);
-          if (m) {
-            const rawHeaders = rawBuf.substring(0, m.index);
-            const bodyStart = Buffer.from(rawBuf.substring(m.index + m[0].length), 'binary');
-            headersParsed = true;
-            res.status(applyCgiHeaders(rawHeaders, res));
-            if (bodyStart.length && !res.write(bodyStart)) child.stdout.pause();
-          }
-        }
-      });
-      child.stdout.on('end', () => {
-        if (headersParsed) {
-          res.end();
-        } else if (!res.headersSent) {
-          res.status(500).send('CGI script produced no output');
-        }
-      });
-      child.stderr.on('data', (data) => console.error(`[cgi] ${scriptPath}: ${data}`));
-      child.on('error', (err) => {
-        console.error(`[cgi] spawn error for ${scriptPath}: ${err.message}`);
-        if (!res.headersSent) res.status(500).send(`CGI error: ${err.message}`);
-      });
-      console.log(`[cgi] ${req.method} ${cgiUrlPath}${req.path} → ${scriptPath}`);
-    });
+  for (const cgiConfig of normalizeCgiConfigs(siteConfig.cgi)) {
+    const options = createCgiRouteOptions(cgiConfig, configDir);
+    router.use(options.cgiUrlPath, createCgiRequestHandler(options, p, configuredHost));
   }
 }
 
