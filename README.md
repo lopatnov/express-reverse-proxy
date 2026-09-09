@@ -877,7 +877,7 @@ Custom path:
 
 ### cgi
 
-Execute server-side scripts using the CGI (Common Gateway Interface) protocol. When a request matches the configured URL prefix and file extension, the script is spawned as a child process — HTTP headers become environment variables, the request body is piped to stdin, and the script's stdout is streamed back as the HTTP response.
+Execute server-side scripts using the CGI (Common Gateway Interface) protocol or lightweight Node.js Worker Threads. When a request matches the configured URL prefix and file extension, the script is executed — HTTP headers become environment variables, the request body is piped to stdin, and the script's stdout (or worker message) is streamed back as the HTTP response.
 
 ```json
 {
@@ -885,8 +885,10 @@ Execute server-side scripts using the CGI (Common Gateway Interface) protocol. W
   "cgi": {
     "path": "/cgi-bin",
     "dir": "./cgi-bin",
-    "extensions": [".cgi", ".pl", ".py", ".sh"],
+    "timeoutMs": 10000,
+    "extensions": [".pl", ".py", ".js"],
     "interpreters": {
+      ".js": { "type": "worker" }, // or ".js": "node"
       ".py": "python3",
       ".sh": "sh",
       ".pl": "perl"
@@ -895,12 +897,13 @@ Execute server-side scripts using the CGI (Common Gateway Interface) protocol. W
 }
 ```
 
-| Option         | Default                         | Description                                                           |
-| -------------- | ------------------------------- | --------------------------------------------------------------------- |
-| `path`         | `"/cgi-bin"`                    | URL prefix that triggers CGI dispatch                                 |
-| `dir`          | `"./cgi-bin"`                   | Local directory containing scripts (resolved relative to config file) |
-| `extensions`   | `[".cgi", ".pl", ".py", ".sh"]` | File extensions treated as executable CGI scripts                     |
-| `interpreters` | `{}`                            | Map of file extension → interpreter command                           |
+| Option         | Default                         | Description                                                                                     |
+| -------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `dir`          | `"./cgi-bin"`                   | Local directory containing scripts (resolved relative to config file)                           |
+| `path`         | `` `/${dir-name}` ``                    | URL prefix that triggers CGI dispatch                                                           |
+| `timeoutMs`    | `undefined`                     | Execution timeout in milliseconds (returns HTTP 504 upon timeout and terminates worker/process) |
+| `extensions`   | `[".pl", ".py", ".js"]`         | File extensions treated as executable CGI scripts (defaults to interpreter keys if specified)   |
+| `interpreters` | `{}`                            | Map of file extension → interpreter command string or `{ type: "worker" \| "process", interpreter?: string }` |
 
 Shorthand — point directly to the script directory (all defaults apply):
 
@@ -908,6 +911,24 @@ Shorthand — point directly to the script directory (all defaults apply):
 {
   "cgi": "./cgi-bin"
 }
+```
+
+#### Execution Strategies
+
+- **Process mode (`type: "process"` or string interpreter)**: The default strategy. Spawns an external child process with the configured interpreter (e.g. `".py": "python3"` or `".py": { "type": "process", "interpreter": "python3" }`).
+- **Worker mode (`type: "worker"` for Node.js)**: Runs the `.js` script inside an isolated Node.js Worker Thread with direct stream piping.
+  - The incoming HTTP request body is piped directly to `process.stdin` of the worker thread.
+  - The worker writes CGI headers and streams output directly to `process.stdout`.
+  - CGI environment variables are accessible via `process.env` and `workerData`.
+  - Memory is automatically reclaimed via `worker.terminate()` upon stream end or timeout.
+
+Minimal Node.js Worker Thread example (`cgi-bin/hello.js`):
+
+```javascript
+process.stdout.write("Content-Type: text/plain\r\n\r\n");
+process.stdout.write(`Hello from CGI Worker! Method: ${process.env.REQUEST_METHOD}\n`);
+// Optionally stream incoming request body
+process.stdin.pipe(process.stdout);
 ```
 
 CGI environment variables set for every request:
@@ -935,9 +956,9 @@ print()
 print("Hello from CGI!")
 ```
 
-> **Unix/macOS note:** Scripts must be executable: `chmod +x cgi-bin/hello.py`. Alternatively, configure an `interpreters` entry for the extension — no executable bit required when an interpreter is specified.
+> **Unix/macOS note:** Scripts operating in process mode must be executable: `chmod +x cgi-bin/hello.py`. Alternatively, configure an `interpreters` entry for the extension — no executable bit required when an interpreter is specified.
 
-> **Windows note:** Scripts are not directly executable on Windows. You must configure `interpreters` for every extension you use; otherwise the request returns a `500` spawn error.
+> **Windows note:** Scripts are not directly executable on Windows. You must configure `interpreters` for every process-based extension you use; otherwise the request returns a `500` spawn error.
 
 **Array form** — multiple independent CGI directories on the same site:
 
@@ -954,7 +975,7 @@ print("Hello from CGI!")
       "path": "/node-scripts",
       "dir": "./node-scripts",
       "extensions": [".js"],
-      "interpreters": { ".js": "node" }
+      "interpreters": { ".js": { "type": "worker" } }
     }
   ]
 }

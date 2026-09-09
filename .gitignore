@@ -118,3 +118,5 @@ cypress/screenshots/
 # IDE and editor settings
 .vscode/
 .sonarlint/
+
+/demo/uploads
