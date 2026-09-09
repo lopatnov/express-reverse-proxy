@@ -246,7 +246,7 @@ for (const [p, group] of configsByPort) {
 
 // Load optional dependencies only for features enabled in the server configuration.
 // Express itself is the runtime's only unconditional external dependency.
-const [{ default: express }] = await Promise.all([import('express')]);
+const { default: express } = await import('express');
 let basicAuth;
 let compression;
 let cors;
