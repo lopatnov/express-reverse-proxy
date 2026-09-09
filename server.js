@@ -549,6 +549,8 @@ function setupCgi(router, siteConfig, p, configDir, configuredHost) {
             kill();
             if (!res.headersSent) {
               res.status(504).send('CGI Timeout');
+            } else {
+              res.end();
             }
           }
         }, timeoutMs);
