@@ -598,8 +598,8 @@ function setupCgi(router, siteConfig, p, configDir, configuredHost) {
         });
       } else {
         runnerName = 'cgi';
-        const command = interpreter || scriptPath;
-        const args = interpreter ? [scriptPath] : [];
+        const command = interpreter || process.execPath;
+        const args = [scriptPath];
         const child = spawn(command, args, { env, cwd: path.dirname(scriptPath), shell: false });
 
         stdin = child.stdin;
