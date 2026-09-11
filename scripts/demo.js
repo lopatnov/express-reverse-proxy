@@ -14,14 +14,16 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
+const SAFE_VALUE = /^[A-Za-z0-9_./+-]+$/;
+
 function collectPassthroughArgs(argv) {
   const passthrough = [];
   for (let i = 2; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--config' || arg === '--env') {
       const value = argv[i + 1];
-      if (!value || value === '--config' || value === '--env') {
-        throw new Error(`Missing value for ${arg}`);
+      if (!value || !SAFE_VALUE.test(value) || value.startsWith('-')) {
+        throw new Error(`Missing or invalid value for ${arg}`);
       }
       passthrough.push(arg, value);
       i += 1;

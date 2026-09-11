@@ -16,7 +16,7 @@ jobs:
           node-version: "24.x"
           cache: "npm"
       - run: npm ci --ignore-scripts
-      - run: npx cypress install
+      - run: ./node_modules/.bin/cypress install
       - run: npm run lint
       - run: npm test
 
