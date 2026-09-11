@@ -125,15 +125,32 @@ if (serverArgs['--cluster']) {
     );
   }
 
+  // shell is only enabled on Windows, to resolve pm2's .cmd shim — either way,
+  // values reaching the shell must not carry shell metacharacters.
+  const SAFE_ARG = /^[A-Za-z0-9_./\\: +-]+$/;
+  function assertSafeArg(name, value) {
+    if (!value || value.startsWith('-') || !SAFE_ARG.test(value)) {
+      exitError(`Invalid value for ${name}: "${value}"`, 16);
+    }
+    return value;
+  }
+
   const action = isAction ? nextArg : 'start';
   const ecosystemConfig = serverArgs['--cluster-config']
-    ? path.resolve(process.cwd(), serverArgs['--cluster-config'].args[0])
+    ? path.resolve(
+        process.cwd(),
+        assertSafeArg('--cluster-config', serverArgs['--cluster-config'].args[0]),
+      )
     : fileURLToPath(new URL('ecosystem.config.cjs', import.meta.url));
   const cwd = process.cwd();
   const configPassthrough = [];
   if (serverArgs['--config'] || serverArgs['--env']) configPassthrough.push('--');
-  if (serverArgs['--config']) configPassthrough.push('--config', serverArgs['--config'].args[0]);
-  if (serverArgs['--env']) configPassthrough.push('--env', serverArgs['--env'].args[0]);
+  if (serverArgs['--config']) {
+    configPassthrough.push('--config', assertSafeArg('--config', serverArgs['--config'].args[0]));
+  }
+  if (serverArgs['--env']) {
+    configPassthrough.push('--env', assertSafeArg('--env', serverArgs['--env'].args[0]));
+  }
 
   const pm2Commands = {
     start: ['start', ecosystemConfig, '--no-daemon', `--cwd=${cwd}`, ...configPassthrough],
@@ -144,7 +161,10 @@ if (serverArgs['--cluster']) {
     monitor: ['monit'],
   };
 
-  const result = spawnSync('pm2', pm2Commands[action], { stdio: 'inherit', shell: true });
+  const result = spawnSync('pm2', pm2Commands[action], {
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
   process.exit(result.status ?? 0);
 }
 
