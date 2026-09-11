@@ -2,7 +2,7 @@ const output = document.getElementById('response-output');
 const statusBadge = document.getElementById('status-badge');
 const clearBtn = document.getElementById('clear-btn');
 
-async function sendRequest(apiPath) {
+async function sendRequest(apiPath, { responseType = 'json' } = {}) {
   output.textContent = 'Loading…';
   statusBadge.className = 'status-badge';
   statusBadge.textContent = '';
@@ -16,8 +16,6 @@ async function sendRequest(apiPath) {
     const body = asText ? await res.text() : JSON.stringify(await res.json(), null, 2);
 
     output.textContent = body;
-
-    output.textContent = formatted;
     statusBadge.textContent = `${res.status} ${res.statusText}`;
     statusBadge.className = `status-badge ${res.ok ? 'ok' : 'err'}`;
   } catch (err) {
@@ -30,7 +28,7 @@ async function sendRequest(apiPath) {
 }
 
 document.querySelectorAll('.btn[data-path]').forEach((btn) => {
-  btn.addEventListener('click', () => sendRequest(btn.dataset.path));
+  btn.addEventListener('click', () => sendRequest(btn.dataset.path, { responseType: btn.dataset.response || 'json' }));
 });
 
 clearBtn.addEventListener('click', () => {
