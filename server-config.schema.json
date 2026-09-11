@@ -5,13 +5,21 @@
   "description": "Configuration file for @lopatnov/express-reverse-proxy",
   "oneOf": [
     { "$ref": "#/definitions/siteConfig" },
+    { "$ref": "#/definitions/configInclude" },
     {
       "type": "array",
-      "items": { "$ref": "#/definitions/siteConfig" },
+      "items": {
+        "oneOf": [{ "$ref": "#/definitions/siteConfig" }, { "$ref": "#/definitions/configInclude" }]
+      },
       "minItems": 1
     }
   ],
   "definitions": {
+    "configInclude": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "Path to another config file, resolved relative to this file. That file's own entries (object or array) are spliced in at this position; it may itself include further files."
+    },
     "siteConfig": {
       "type": "object",
       "additionalProperties": false,
