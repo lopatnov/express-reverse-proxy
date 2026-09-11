@@ -819,6 +819,8 @@ function setupCgi(router, siteConfig, p, configDir, configuredHost) {
   }
 }
 
+// file.mimetype is the client-declared Content-Type of the upload part, not a
+// sniff of the actual bytes — a filter for honest clients, not a security boundary.
 function buildFileFilter(allowedTypes) {
   if (!allowedTypes) return undefined;
   return (_req, file, cb) => {

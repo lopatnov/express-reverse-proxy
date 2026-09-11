@@ -1102,6 +1102,8 @@ Shorthand — directory only (all defaults apply):
 | `allowedTypes` | none          | MIME type whitelist; responds with `400` when the type is not in the list |
 | `fieldName`    | any field     | Accept only files uploaded in this specific form field                    |
 
+> **Security note:** `allowedTypes` matches the MIME type the client declares in the upload's `Content-Type` part — it is not verified against the file's actual bytes. A malicious client can label any content with an allowed type string. Treat this as a convenience filter for honest clients, not a security boundary; if the content type must be trusted, inspect the uploaded file server-side (e.g. magic-byte/signature sniffing) after it lands.
+
 **Array form** — multiple upload endpoints on the same site:
 
 ```json
