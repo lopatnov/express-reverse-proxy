@@ -14,6 +14,7 @@ ThirdPartyNotices.txt eol=crlf
 **/*.xml text eol=lf linguist-language=XML
 **/*.ts text eol=lf linguist-language=TypeScript
 **/*.js text eol=lf linguist-language=JavaScript
+**/*.cjs text eol=lf linguist-language=JavaScript
 **/*.yml text eol=lf linguist-language=YAML
 **/*.md text eol=lf linguist-language=Markdown
 **/*.css text eol=lf linguist-language=CSS diff=css

@@ -667,6 +667,20 @@ To use multi-site mode, make the config file an **array** instead of an object. 
 >
 > Two entries with the same `host` **and** `port` cause a startup error. The same `host` on different ports is allowed.
 
+### include
+
+In array mode, an entry can be a **string** instead of an object — a path to another JSON config file, resolved relative to the file that references it. That file's own entries are spliced in at that position. Useful for splitting a large multi-site config across files.
+
+```json
+[
+  "sites/app.json",
+  "sites/admin.json",
+  { "host": "*", "port": 8080, "folders": "fallback" }
+]
+```
+
+An included file can itself be a single config object or an array, and can include further files. A missing file, invalid JSON, or a circular include chain (`a.json -> b.json -> a.json`, however many files apart) all fail startup with an error, same as any other configuration problem.
+
 ### env
 
 Tag a site config for selective startup with the [`--env`](#--env) CLI flag. Omit `env` on a config to include it in every environment (always started, even when `--env` is used).
@@ -1101,6 +1115,8 @@ Shorthand — directory only (all defaults apply):
 | `maxFiles`     | none          | Maximum number of files per request; responds with `400` when exceeded    |
 | `allowedTypes` | none          | MIME type whitelist; responds with `400` when the type is not in the list |
 | `fieldName`    | any field     | Accept only files uploaded in this specific form field                    |
+
+> **Security note:** `allowedTypes` matches the MIME type the client declares in the upload's `Content-Type` part — it is not verified against the file's actual bytes. A malicious client can label any content with an allowed type string. Treat this as a convenience filter for honest clients, not a security boundary; if the content type must be trusted, inspect the uploaded file server-side (e.g. magic-byte/signature sniffing) after it lands.
 
 **Array form** — multiple upload endpoints on the same site:
 
