@@ -16,47 +16,27 @@ const root = path.join(__dirname, '..');
 
 // First character excludes "-" so a value can never be mistaken for another flag.
 const SAFE_VALUE = /^[A-Za-z0-9_./+][A-Za-z0-9_./+-]*$/;
-const KNOWN_FLAGS = new Set(['--config', '--env']);
 
-function collectPassthroughArgs(argv) {
-  const passthrough = [];
-  for (let i = 2; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (KNOWN_FLAGS.has(arg)) {
-      const value = argv[i + 1];
-      if (!value || !SAFE_VALUE.test(value)) {
-        throw new Error(`Missing or invalid value for ${arg}`);
-      }
-      passthrough.push(arg, value);
-      i += 1;
-    }
-  }
-  return passthrough;
+const configIndex = process.argv.indexOf('--config');
+const envIndex = process.argv.indexOf('--env');
+const rawConfig = configIndex === -1 ? undefined : process.argv[configIndex + 1];
+const rawEnv = envIndex === -1 ? undefined : process.argv[envIndex + 1];
+
+if (configIndex !== -1 && (!rawConfig || !SAFE_VALUE.test(rawConfig))) {
+  throw new Error('Missing or invalid value for --config');
+}
+if (envIndex !== -1 && (!rawEnv || !SAFE_VALUE.test(rawEnv))) {
+  throw new Error('Missing or invalid value for --env');
 }
 
-// Re-validated immediately at the spawn call site (not just in collectPassthroughArgs)
-// so no unsanitized value can reach the child process's argv, however configArg was built.
-function assertSafePassthrough(args) {
-  for (let i = 0; i < args.length; i += 2) {
-    if (!KNOWN_FLAGS.has(args[i]) || !SAFE_VALUE.test(args[i + 1] ?? '')) {
-      throw new Error(`Unsafe argument: ${args[i]} ${args[i + 1]}`);
-    }
-  }
-  return args;
-}
-
-const passthroughArgs = collectPassthroughArgs(process.argv);
-const configArg = passthroughArgs.length
-  ? passthroughArgs
-  : ['--config', './demo/server-config.json'];
+const configValue = rawConfig ?? './demo/server-config.json';
+const serverArgs =
+  envIndex === -1 ? ['--config', configValue] : ['--config', configValue, '--env', rawEnv];
 
 const procs = [
   spawn('node', ['demo/server-a.js'], { cwd: root, stdio: 'inherit' }),
   spawn('node', ['demo/server-b.js'], { cwd: root, stdio: 'inherit' }),
-  spawn('node', ['server.js', ...assertSafePassthrough(configArg)], {
-    cwd: root,
-    stdio: 'inherit',
-  }),
+  spawn('node', ['server.js', ...serverArgs], { cwd: root, stdio: 'inherit' }),
 ];
 
 function shutdown() {
