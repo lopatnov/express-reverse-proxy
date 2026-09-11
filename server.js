@@ -127,7 +127,7 @@ if (serverArgs['--cluster']) {
 
   // shell is only enabled on Windows, to resolve pm2's .cmd shim — either way,
   // values reaching the shell must not carry shell metacharacters.
-  const SAFE_ARG = /^[A-Za-z0-9_./\\: +-]+$/;
+  const SAFE_ARG = /^[A-Za-z0-9_./\\:+-]+$/;
   function assertSafeArg(name, value) {
     if (!value || value.startsWith('-') || !SAFE_ARG.test(value)) {
       exitError(`Invalid value for ${name}: "${value}"`, 16);
