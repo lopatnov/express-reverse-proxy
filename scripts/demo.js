@@ -19,7 +19,11 @@ function collectPassthroughArgs(argv) {
   for (let i = 2; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--config' || arg === '--env') {
-      passthrough.push(arg, argv[i + 1]);
+      const value = argv[i + 1];
+      if (!value || value === '--config' || value === '--env') {
+        throw new Error(`Missing value for ${arg}`);
+      }
+      passthrough.push(arg, value);
       i += 1;
     }
   }
