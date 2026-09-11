@@ -28,7 +28,9 @@ async function sendRequest(apiPath, { responseType = 'json' } = {}) {
 }
 
 document.querySelectorAll('.btn[data-path]').forEach((btn) => {
-  btn.addEventListener('click', () => sendRequest(btn.dataset.path, { responseType: btn.dataset.response || 'json' }));
+  btn.addEventListener('click', () =>
+    sendRequest(btn.dataset.path, { responseType: btn.dataset.response || 'json' }),
+  );
 });
 
 clearBtn.addEventListener('click', () => {
