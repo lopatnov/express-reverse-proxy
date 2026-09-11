@@ -18,14 +18,17 @@ function collectPassthroughArgs(argv) {
   const passthrough = [];
   for (let i = 2; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--config' || arg === '--env') {
-      const value = argv[i + 1];
-      if (!value || value === '--config' || value === '--env') {
-        throw new Error(`Missing value for ${arg}`);
-      }
-      passthrough.push(arg, value);
-      i += 1;
+    if (arg !== '--config' && arg !== '--env') {
+      throw new Error(`Unsupported argument: ${arg}`);
     }
+
+    const value = argv[i + 1];
+    if (!value || value.startsWith('-')) {
+      throw new Error(`Missing value for ${arg}`);
+    }
+
+    passthrough.push(arg, value);
+    i += 1;
   }
   return passthrough;
 }
@@ -38,7 +41,7 @@ const configArg = passthroughArgs.length
 const procs = [
   spawn('node', ['demo/server-a.js'], { cwd: root, stdio: 'inherit' }),
   spawn('node', ['demo/server-b.js'], { cwd: root, stdio: 'inherit' }),
-  spawn('node', ['server.js', ...configArg], { cwd: root, stdio: 'inherit' }),
+  spawn('node', ['server.js', ...configArg, '--cluster'], { cwd: root, stdio: 'inherit' }),
 ];
 
 function shutdown() {
