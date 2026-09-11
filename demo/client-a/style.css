@@ -115,6 +115,18 @@ main {
   line-height: 1.5;
 }
 
+.section-title {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
+.section-desc {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
 /* Cards */
 .cards {
   display: grid;
@@ -158,6 +170,26 @@ main {
 .method.get {
   background: rgba(63, 185, 80, 0.2);
   color: var(--accent);
+}
+
+.runtime {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.runtime.node {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--blue);
+}
+
+.runtime.python {
+  background: rgba(210, 153, 34, 0.15);
+  color: var(--yellow);
 }
 
 .card-desc {

@@ -28,32 +28,35 @@
       </p>
     </section>
 
-    <section class="cards">
-      <div class="card">
-        <div class="card-header">
-          <span class="method get">GET</span>
-          <code>/api/users</code>
+    <section>
+      <h2 class="section-title">API proxy</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="card-header">
+            <span class="method get">GET</span>
+            <code>/api/users</code>
+          </div>
+          <p class="card-desc">Fetch all users from the Users service.</p>
+          <button type="button" class="btn" data-path="/api/users">Send request</button>
         </div>
-        <p class="card-desc">Fetch all users from the Users service.</p>
-        <button type="button" class="btn" data-path="/api/users">Send request</button>
-      </div>
 
-      <div class="card">
-        <div class="card-header">
-          <span class="method get">GET</span>
-          <code>/api/users/1</code>
+        <div class="card">
+          <div class="card-header">
+            <span class="method get">GET</span>
+            <code>/api/users/1</code>
+          </div>
+          <p class="card-desc">Fetch a single user by ID.</p>
+          <button type="button" class="btn" data-path="/api/users/1">Send request</button>
         </div>
-        <p class="card-desc">Fetch a single user by ID.</p>
-        <button type="button" class="btn" data-path="/api/users/1">Send request</button>
-      </div>
 
-      <div class="card">
-        <div class="card-header">
-          <span class="method get">GET</span>
-          <code>/api/users/99</code>
+        <div class="card">
+          <div class="card-header">
+            <span class="method get">GET</span>
+            <code>/api/users/99</code>
+          </div>
+          <p class="card-desc">Fetch a non-existent user — expect 404.</p>
+          <button type="button" class="btn" data-path="/api/users/99">Send request</button>
         </div>
-        <p class="card-desc">Fetch a non-existent user — expect 404.</p>
-        <button type="button" class="btn" data-path="/api/users/99">Send request</button>
       </div>
     </section>
 
@@ -64,6 +67,42 @@
         <button type="button" class="btn-clear" id="clear-btn" hidden>Clear</button>
       </div>
       <pre id="response-output"><span class="placeholder">← Click a button to send an API request</span></pre>
+    </section>
+
+    <section>
+      <h2 class="section-title">CGI scripts</h2>
+      <p class="section-desc">Three execution strategies on the same server — two Node.js runtimes and one Python interpreter.</p>
+      <div class="cards">
+        <div class="card">
+          <div class="card-header">
+            <span class="method get">GET</span>
+            <code>/cgi-bin/test-worker.js</code>
+            <span class="runtime node">Node worker</span>
+          </div>
+          <p class="card-desc">Runs in a Node.js Worker Thread inside the server process.</p>
+          <button type="button" class="btn" data-path="/cgi-bin/test-worker.js" data-response="text">Run script</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="method get">GET</span>
+            <code>/cgi-process/test-process.js</code>
+            <span class="runtime node">Node process</span>
+          </div>
+          <p class="card-desc">Spawns a separate Node.js child process via <code>child_process</code>.</p>
+          <button type="button" class="btn" data-path="/cgi-process/test-process.js?greeting=hello" data-response="text">Run script</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="method get">GET</span>
+            <code>/cgi-bin/test-python.py</code>
+            <span class="runtime python">Python</span>
+          </div>
+          <p class="card-desc">Executes a Python script through the configured interpreter.</p>
+          <button type="button" class="btn" data-path="/cgi-bin/test-python.py?name=John" data-response="text">Run script</button>
+        </div>
+      </div>
     </section>
 
     <section class="info">

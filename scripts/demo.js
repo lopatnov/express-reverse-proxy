@@ -14,14 +14,29 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
-const configArg = process.argv.includes('--config')
-  ? process.argv.slice(process.argv.indexOf('--config'))
-  : ['--config', './demo/server-config.json'];
+// First character excludes "-" so a value can never be mistaken for another flag.
+const SAFE_VALUE = /^[A-Za-z0-9_./+][A-Za-z0-9_./+-]*$/;
+
+const configIndex = process.argv.indexOf('--config');
+const envIndex = process.argv.indexOf('--env');
+const rawConfig = configIndex === -1 ? undefined : process.argv[configIndex + 1];
+const rawEnv = envIndex === -1 ? undefined : process.argv[envIndex + 1];
+
+if (configIndex !== -1 && (!rawConfig || !SAFE_VALUE.test(rawConfig))) {
+  throw new Error('Missing or invalid value for --config');
+}
+if (envIndex !== -1 && (!rawEnv || !SAFE_VALUE.test(rawEnv))) {
+  throw new Error('Missing or invalid value for --env');
+}
+
+const configValue = rawConfig ?? './demo/server-config.json';
+const serverArgs =
+  envIndex === -1 ? ['--config', configValue] : ['--config', configValue, '--env', rawEnv];
 
 const procs = [
-  spawn('node', ['demo/server-a.js'], { cwd: root, stdio: 'inherit' }),
-  spawn('node', ['demo/server-b.js'], { cwd: root, stdio: 'inherit' }),
-  spawn('node', ['server.js', ...configArg], { cwd: root, stdio: 'inherit' }),
+  spawn(process.execPath, ['demo/server-a.js'], { cwd: root, stdio: 'inherit' }),
+  spawn(process.execPath, ['demo/server-b.js'], { cwd: root, stdio: 'inherit' }),
+  spawn(process.execPath, ['server.js', ...serverArgs], { cwd: root, stdio: 'inherit' }),
 ];
 
 function shutdown() {

@@ -13,6 +13,13 @@ const possibleServerArgs = [
     samples: ['--config ./server-config.json', '--config ./configs/express-reverse-proxy.json'],
   },
   {
+    name: '--env',
+    subArgs: ['names'],
+    description:
+      'start only site configs tagged with the given environment name(s). Use "+" to combine multiple names (OR). Omit to start all configs.',
+    samples: ['--env dev', '--env featureA+featureB'],
+  },
+  {
     name: '--cluster',
     description: 'manage the PM2 cluster. Action defaults to "start" when omitted',
     samples: [
@@ -123,9 +130,10 @@ if (serverArgs['--cluster']) {
     ? path.resolve(process.cwd(), serverArgs['--cluster-config'].args[0])
     : fileURLToPath(new URL('ecosystem.config.cjs', import.meta.url));
   const cwd = process.cwd();
-  const configPassthrough = serverArgs['--config']
-    ? ['--', '--config', serverArgs['--config'].args[0]]
-    : [];
+  const configPassthrough = [];
+  if (serverArgs['--config'] || serverArgs['--env']) configPassthrough.push('--');
+  if (serverArgs['--config']) configPassthrough.push('--config', serverArgs['--config'].args[0]);
+  if (serverArgs['--env']) configPassthrough.push('--env', serverArgs['--env'].args[0]);
 
   const pm2Commands = {
     start: ['start', ecosystemConfig, '--no-daemon', `--cwd=${cwd}`, ...configPassthrough],
@@ -203,7 +211,46 @@ if (fs.existsSync(configFile)) {
   rawConfig = DEFAULT_CONFIG;
 }
 
-const configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
+let configs = (Array.isArray(rawConfig) ? rawConfig : [rawConfig]).map((config) => ({
+  ...config,
+  env: normalizeConfigEnvs(config.env),
+}));
+
+function normalizeConfigEnvs(envValue) {
+  if (envValue === undefined) return null;
+  if (typeof envValue === 'string') return [envValue];
+  if (Array.isArray(envValue) && envValue.every((item) => typeof item === 'string')) {
+    return envValue;
+  }
+  exitError('Invalid "env" in configuration: expected a string or array of strings.', 1);
+}
+
+function parseEnvFilter(envArg) {
+  return envArg
+    .split('+')
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
+function configMatchesEnvFilter(config, envFilter) {
+  if (config.env === null) return true;
+  return envFilter.some((filterEnv) => config.env.includes(filterEnv));
+}
+
+if (serverArgs['--env']) {
+  const envFilter = parseEnvFilter(serverArgs['--env'].args[0]);
+  if (envFilter.length === 0) {
+    exitError('Invalid --env value: expected one or more environment names.', 16);
+  }
+  const filtered = configs.filter((config) => configMatchesEnvFilter(config, envFilter));
+  if (filtered.length === 0) {
+    exitError(`No configurations match env filter: ${envFilter.join('+')}`, 1);
+  }
+  console.log(
+    `[env] starting ${filtered.length} of ${configs.length} configuration(s) for: ${envFilter.join('+')}`,
+  );
+  configs = filtered;
+}
 
 // Validate: same host on same port is an error; same host on different ports is OK
 const seen = new Set();

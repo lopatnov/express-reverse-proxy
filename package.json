@@ -1,7 +1,7 @@
 {
   "name": "@lopatnov/express-reverse-proxy",
   "email": "oleksandr@lopatnov.cv.ua",
-  "version": "5.3.0",
+  "version": "5.4.0",
   "description": "Lightweight Node.js CLI tool to serve static front-end files and reverse-proxy API requests to a back-end server. Zero-config start, flexible JSON configuration, PM2 and Docker ready.",
   "type": "module",
   "author": "lopatnov",
@@ -40,6 +40,7 @@
     "start:server-a": "node ./demo/server-a.js",
     "start:server-b": "node ./demo/server-b.js",
     "demo": "node ./scripts/demo.js",
+    "demo:env": "node ./scripts/demo.js --config ./demo/server-config.env.json --env dev+featureA",
     "test": "node ./scripts/test.js",
     "cypress:run": "cypress run",
     "cypress:open": "cypress open",

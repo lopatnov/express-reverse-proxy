@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### New features
+
+- **`env` config field + `--env` CLI flag**: tag site configs with an environment name (string or array) and start only matching entries via `lerp --env dev` or `lerp --env featureA+featureB`. Omit `--env` to start all configs. Configs without `env` are always included.
+
 ## [5.1.0] — 2026-07-29
 
 ### Security
