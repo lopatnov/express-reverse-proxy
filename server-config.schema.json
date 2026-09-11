@@ -30,10 +30,10 @@
         "env": {
           "description": "Environment tag(s) for this site config. Used with the --env CLI flag to start only matching configs. Omit to include the config in every environment.",
           "oneOf": [
-            { "type": "string" },
+            { "type": "string", "pattern": "\\S" },
             {
               "type": "array",
-              "items": { "type": "string" },
+              "items": { "type": "string", "pattern": "\\S" },
               "minItems": 1
             }
           ]
