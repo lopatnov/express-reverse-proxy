@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const http = require('node:http');
 const path = require('node:path');
 
 module.exports = {
@@ -15,6 +16,19 @@ module.exports = {
           const file = path.join(config.projectRoot, 'demo', 'cgi-bin', 'test-worker.js');
           fs.writeFileSync(file, fs.readFileSync(file));
           return null;
+        },
+        isPortListening(url) {
+          return new Promise((resolve) => {
+            const req = http.get(url, (res) => {
+              res.resume();
+              resolve(true);
+            });
+            req.on('error', () => resolve(false));
+            req.setTimeout(2000, () => {
+              req.destroy();
+              resolve(false);
+            });
+          });
         },
       });
       return config;

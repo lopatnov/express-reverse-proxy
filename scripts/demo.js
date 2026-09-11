@@ -14,8 +14,21 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
-const configArg = process.argv.includes('--config')
-  ? process.argv.slice(process.argv.indexOf('--config'))
+function collectPassthroughArgs(argv) {
+  const passthrough = [];
+  for (let i = 2; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--config' || arg === '--env') {
+      passthrough.push(arg, argv[i + 1]);
+      i += 1;
+    }
+  }
+  return passthrough;
+}
+
+const passthroughArgs = collectPassthroughArgs(process.argv);
+const configArg = passthroughArgs.length
+  ? passthroughArgs
   : ['--config', './demo/server-config.json'];
 
 const procs = [

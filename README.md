@@ -19,6 +19,7 @@
 - [How It Works](#how-it-works)
 - [CLI Options](#cli-options)
   - [--config](#--config)
+  - [--env](#--env)
   - [--init](#--init)
   - [--cluster](#--cluster)
   - [--cluster-config](#--cluster-config)
@@ -42,6 +43,7 @@
   - [proxy](#proxy)
   - [unhandled](#unhandled)
   - [host](#host)
+  - [env](#env)
   - [trustProxy](#trustproxy)
   - [ssl](#ssl)
 - [Configuration Recipes](#configuration-recipes)
@@ -141,6 +143,19 @@ demo/
 npm run demo
 ```
 
+**Try the `--env` filter** (4 tagged configs, 2 share the name `dev`; only `dev` + `featureA` start):
+
+```shell
+npm run demo:env
+```
+
+| URL                     | Env tag              | Started by `demo:env` |
+| ----------------------- | -------------------- | --------------------- |
+| `http://localhost:8090` | `dev` (site 1)       | yes                   |
+| `http://localhost:8091` | `dev` (site 2)       | yes                   |
+| `http://localhost:8092` | `featureA`           | yes                   |
+| `http://localhost:8093` | `featureB`, `staging`| no                    |
+
 This command starts both mock back-ends and the proxy server (serving both clients) as a single Node.js-managed process group. Open the clients in your browser:
 
 | URL                     | Description                  |
@@ -228,6 +243,7 @@ lerp [options]
 | ------------------------- | ----------------------------------------------------------------------------------------------- |
 | `--help`                  | Print help and exit                                                                             |
 | `--config <file>`         | Path to the JSON configuration file. Default: `server-config.json`                              |
+| `--env <names>`           | Start only configs tagged with the given environment name(s). Use `+` for OR. Omit to start all |
 | `--init`                  | Interactively create a `server-config.json` in the current directory                            |
 | `--cluster [action]`      | Manage the PM2 cluster. Action defaults to `start` when omitted                                 |
 | `--cluster-config <file>` | Path to a custom PM2 ecosystem config file. Default: `ecosystem.config.cjs` next to `server.js` |
@@ -244,6 +260,29 @@ express-reverse-proxy --config ./configs/
 Default: `server-config.json` in the current working directory.
 
 If the file is not found and `--config` was explicitly provided, the server exits with an error. If no `--config` is given and the default file is missing, the server starts with built-in defaults (`port: 8000`, `folders: "."`) and prints a warning.
+
+### --env
+
+Start only the site configurations tagged for a specific environment. When omitted, every entry in the config file is started.
+
+Each site config can declare an `env` field — a string or array of strings (see [`env`](#env)). The CLI filter matches if **any** of the requested names appears in that config's `env` list. Configs **without** an `env` field are always included.
+
+Use `+` to combine multiple environment names (OR):
+
+```shell
+lerp --env dev
+lerp --env featureA+featureB
+express-reverse-proxy --env staging --config ./configs/prod.json
+```
+
+Pass `--env` through PM2 cluster mode as well:
+
+```shell
+express-reverse-proxy --cluster start --env dev
+express-reverse-proxy --cluster restart --env featureA+featureB --config ./configs/all.json
+```
+
+If no configs match the filter, the server exits with an error.
 
 ### --init
 
@@ -627,6 +666,49 @@ To use multi-site mode, make the config file an **array** instead of an object. 
 > Configs with the same `port` share one Express server; configs with different `port` values each start their own server.
 >
 > Two entries with the same `host` **and** `port` cause a startup error. The same `host` on different ports is allowed.
+
+### env
+
+Tag a site config for selective startup with the [`--env`](#--env) CLI flag. Omit `env` on a config to include it in every environment (always started, even when `--env` is used).
+
+**Single environment:**
+
+```json
+{
+  "env": "dev",
+  "port": 8080,
+  "folders": "www"
+}
+```
+
+**Multiple environments** (the config starts when any listed name is requested):
+
+```json
+{
+  "env": ["featureA", "featureB", "featureC"],
+  "port": 8080,
+  "folders": "www"
+}
+```
+
+**Multi-site config with environment tags:**
+
+```json
+[
+  { "env": "dev", "port": 8080, "folders": "www-dev" },
+  { "env": "prod", "port": 8080, "folders": "www-prod" },
+  { "port": 9090, "proxy": { "/api": "http://localhost:4000" } }
+]
+```
+
+| CLI command              | Configs started                                      |
+| ------------------------ | ---------------------------------------------------- |
+| `lerp`                   | All three (no filter)                                |
+| `lerp --env dev`         | `www-dev` on :8080 and the untagged proxy on :9090   |
+| `lerp --env prod`        | `www-prod` on :8080 and the untagged proxy on :9090  |
+| `lerp --env dev+prod`    | Both :8080 sites plus the untagged proxy on :9090     |
+
+> `env` is a startup filter only — it does not affect request routing or HTTP behaviour at runtime.
 
 ### trustProxy
 

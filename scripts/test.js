@@ -55,6 +55,11 @@ const procs = [
   spawnProc('node', ['demo/server-a.js'], 'server-a'),
   spawnProc('node', ['demo/server-b.js'], 'server-b'),
   spawnProc('node', ['server.js', '--config', './demo/server-config.json'], 'proxy'),
+  spawnProc(
+    'node',
+    ['server.js', '--config', './demo/server-config.env.json', '--env', 'dev+featureA'],
+    'proxy-env',
+  ),
 ];
 
 function killAll(code = 0) {
@@ -77,6 +82,9 @@ const urls = [
   'http://localhost:8084/api/users',
   'http://localhost:8085/users',
   'http://localhost:8087/api/users',
+  'http://localhost:8090',
+  'http://localhost:8091',
+  'http://localhost:8092',
 ];
 
 try {

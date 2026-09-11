@@ -27,6 +27,17 @@
           "type": "string",
           "description": "Virtual host to match against the HTTP Host header. Use \"*\" or omit for catch-all."
         },
+        "env": {
+          "description": "Environment tag(s) for this site config. Used with the --env CLI flag to start only matching configs. Omit to include the config in every environment.",
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          ]
+        },
         "trustProxy": {
           "description": "Express 'trust proxy' setting. Set only when this instance itself sits behind another trusted reverse proxy/load balancer, so req.hostname/protocol/ip (and the X-Forwarded-* headers this proxy forwards) honor that proxy's chain instead of a client's own claims. Defaults to Express's default (false, i.e. nothing is trusted).",
           "oneOf": [

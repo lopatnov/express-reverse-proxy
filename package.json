@@ -40,6 +40,7 @@
     "start:server-a": "node ./demo/server-a.js",
     "start:server-b": "node ./demo/server-b.js",
     "demo": "node ./scripts/demo.js",
+    "demo:env": "node ./scripts/demo.js --config ./demo/server-config.env.json --env dev+featureA",
     "test": "node ./scripts/test.js",
     "cypress:run": "cypress run",
     "cypress:open": "cypress open",

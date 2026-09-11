@@ -9,9 +9,14 @@ async function sendRequest(apiPath) {
 
   try {
     const res = await fetch(apiPath);
-    const data = await res.json();
-    const formatted = JSON.stringify(data, null, 2);
+    const contentType = res.headers.get('content-type') || '';
+    const asText =
+      responseType === 'text' ||
+      (responseType === 'json' && !contentType.includes('application/json'));
+    const body = asText ? await res.text() : JSON.stringify(await res.json(), null, 2);
 
+    output.textContent = body;
+    
     output.textContent = formatted;
     statusBadge.textContent = `${res.status} ${res.statusText}`;
     statusBadge.className = `status-badge ${res.ok ? 'ok' : 'err'}`;
