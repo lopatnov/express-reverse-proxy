@@ -211,7 +211,10 @@ if (fs.existsSync(configFile)) {
   rawConfig = DEFAULT_CONFIG;
 }
 
-let configs = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
+let configs = (Array.isArray(rawConfig) ? rawConfig : [rawConfig]).map((config) => ({
+  ...config,
+  env: normalizeConfigEnvs(config.env),
+}));
 
 function normalizeConfigEnvs(envValue) {
   if (envValue === undefined) return null;
@@ -230,9 +233,8 @@ function parseEnvFilter(envArg) {
 }
 
 function configMatchesEnvFilter(config, envFilter) {
-  const configEnvs = normalizeConfigEnvs(config.env);
-  if (configEnvs === null) return true;
-  return envFilter.some((filterEnv) => configEnvs.includes(filterEnv));
+  if (config.env === null) return true;
+  return envFilter.some((filterEnv) => config.env.includes(filterEnv));
 }
 
 if (serverArgs['--env']) {
