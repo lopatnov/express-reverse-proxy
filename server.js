@@ -231,7 +231,43 @@ if (fs.existsSync(configFile)) {
   rawConfig = DEFAULT_CONFIG;
 }
 
-let configs = (Array.isArray(rawConfig) ? rawConfig : [rawConfig]).map((config) => ({
+// A string entry is a path to another config file whose entries are spliced in
+// here. `stack` holds the resolved path of every file on the current include
+// chain (root to here) — not a global "already seen" set — so a diamond
+// (A includes B and C; both include D) is fine, but any file re-appearing on
+// its own chain (A -> B -> C -> A) is a cycle and fails loudly.
+function loadIncludedConfigs(filePath, stack) {
+  if (stack.includes(filePath)) {
+    const chain = [...stack, filePath].join(' -> ');
+    exitError(`Circular config include: ${chain}`, 1);
+  }
+  if (!fs.existsSync(filePath)) {
+    exitError(`Included configuration file not found: "${filePath}"`, 404);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (err) {
+    exitError(`Failed to parse "${filePath}": ${err.message}`, 1);
+  }
+  const nextStack = [...stack, filePath];
+  const baseDir = path.dirname(filePath);
+  return (Array.isArray(parsed) ? parsed : [parsed]).flatMap((entry) =>
+    typeof entry === 'string'
+      ? loadIncludedConfigs(path.resolve(baseDir, entry), nextStack)
+      : [entry],
+  );
+}
+
+const topLevelConfigPath = path.resolve(configFile);
+const rawEntries = Array.isArray(rawConfig) ? rawConfig : [rawConfig];
+const expandedEntries = rawEntries.flatMap((entry) =>
+  typeof entry === 'string'
+    ? loadIncludedConfigs(path.resolve(configDir, entry), [topLevelConfigPath])
+    : [entry],
+);
+
+let configs = expandedEntries.map((config) => ({
   ...config,
   env: normalizeConfigEnvs(config.env),
 }));
