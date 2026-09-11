@@ -16,7 +16,7 @@ async function sendRequest(apiPath) {
     const body = asText ? await res.text() : JSON.stringify(await res.json(), null, 2);
 
     output.textContent = body;
-    
+
     output.textContent = formatted;
     statusBadge.textContent = `${res.status} ${res.statusText}`;
     statusBadge.className = `status-badge ${res.ok ? 'ok' : 'err'}`;
