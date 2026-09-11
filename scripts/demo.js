@@ -34,9 +34,9 @@ const serverArgs =
   envIndex === -1 ? ['--config', configValue] : ['--config', configValue, '--env', rawEnv];
 
 const procs = [
-  spawn('node', ['demo/server-a.js'], { cwd: root, stdio: 'inherit' }),
-  spawn('node', ['demo/server-b.js'], { cwd: root, stdio: 'inherit' }),
-  spawn('node', ['server.js', ...serverArgs], { cwd: root, stdio: 'inherit' }),
+  spawn(process.execPath, ['demo/server-a.js'], { cwd: root, stdio: 'inherit' }),
+  spawn(process.execPath, ['demo/server-b.js'], { cwd: root, stdio: 'inherit' }),
+  spawn(process.execPath, ['server.js', ...serverArgs], { cwd: root, stdio: 'inherit' }),
 ];
 
 function shutdown() {

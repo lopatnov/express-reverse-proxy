@@ -1,5 +1,8 @@
-const method = process.env.REQUEST_METHOD || 'UNKNOWN';
-const query = process.env.QUERY_STRING || '';
+const ESCAPE_HTML_CHARS = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ESCAPE_HTML_CHARS[char]);
+
+const method = escapeHtml(process.env.REQUEST_METHOD || 'UNKNOWN');
+const query = escapeHtml(process.env.QUERY_STRING || '');
 
 process.stdout.write('Content-Type: text/html\r\n');
 process.stdout.write('X-Runtime: process\r\n');
