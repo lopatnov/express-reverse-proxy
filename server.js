@@ -319,7 +319,10 @@ configs.forEach((c) => {
         hooks[hookName].push({
           cmd: c.hooks[hookName],
         });
-      else if (Array.isArray(c.hooks[hookName])) hooks[hookName].push(...c.hooks[hookName]);
+      else if (Array.isArray(c.hooks[hookName]))
+        hooks[hookName].push(
+          ...c.hooks[hookName].map((cmd) => (typeof cmd === 'string' ? { cmd } : cmd)),
+        );
       else if (typeof c.hooks[hookName] === 'object') hooks[hookName].push(c.hooks[hookName]);
     });
   }
@@ -1037,60 +1040,74 @@ function runHookSync(hooks, hookName) {
 
 function runHookAsync(hooks, hookName) {
   const list = hooks[hookName];
-  if (!list?.length) return;
+  if (!list?.length) return [];
 
-  for (const runItem of list) {
-    const hook = {
-      cmd: runItem.cmd,
-      out: 'inherit',
-      err: 'inherit',
-      fds: {},
-    };
+  return list.map(
+    (runItem) =>
+      new Promise((resolve, reject) => {
+        const hook = {
+          cmd: runItem.cmd,
+          out: 'pipe',
+          err: 'pipe',
+          fds: {},
+        };
 
-    console.log(`[hook ${hookName}] \x1b[34m${hook.cmd}\x1b[0m`);
-    ['out', 'err'].forEach((op) => {
-      if (runItem[op] && runItem[op] !== hook[op]) {
-        if (runItem[op] === 'inherit') hook[op] = 'inherit';
-        else if (runItem[op] === 'ignore') hook[op] = 'ignore';
-        else {
-          const logPath = path.resolve(configDir, runItem[op]);
-          console.log(`[hook ${hookName}] \tLogging ${op} to: ${logPath}`);
-          if (!hook.fds[logPath]) {
-            fs.mkdirSync(path.dirname(logPath), { recursive: true });
-            hook.fds[logPath] = hook[op] = fs.openSync(path.resolve(configDir, runItem[op]), 'a');
-          } else {
-            hook[op] = hook.fds[logPath];
+        console.log(`[hook ${hookName}] \x1b[34m${hook.cmd}\x1b[0m`);
+        ['out', 'err'].forEach((op) => {
+          if (runItem[op] && runItem[op] !== hook[op]) {
+            if (['inherit', 'ignore', 'overlapped', 'pipe'].includes(runItem[op]))
+              hook[op] = runItem[op];
+            else {
+              const logPath = path.resolve(configDir, runItem[op]);
+              console.log(`[hook ${hookName}] \tLogging ${op} to: ${logPath}`);
+              if (!hook.fds[logPath]) {
+                fs.mkdirSync(path.dirname(logPath), { recursive: true });
+                hook.fds[logPath] = hook[op] = fs.openSync(
+                  path.resolve(configDir, runItem[op]),
+                  'a',
+                );
+              } else {
+                hook[op] = hook.fds[logPath];
+              }
+            }
           }
+        });
+
+        const child = spawn(hook.cmd, {
+          detached: true,
+          shell: true,
+          stdio: ['ignore', hook.out, hook.err],
+        });
+        if (child.stdout) {
+          child.stdout.on('data', (data) => process.stdout.write(data));
         }
-      }
-    });
+        if (child.stderr) {
+          child.stderr.on('data', (data) => process.stderr.write(data));
+        }
+        child.on('error', (err) => {
+          console.error(
+            `[hook ${hookName}] Execution error of "\x1b[31m${hook.cmd}\x1b[0m": \x1b[31m${err.message}\x1b[0m`,
+          );
+        });
+        child.on('close', (code, signal) => {
+          if (code !== 0) {
+            const signalText = signal ? `signal ${signal}` : `code ${code}`;
+            console.error(
+              `[hooks ${hookName}] Command "\x1b[31m${hook.cmd}\x1b[0m" exited with \x1b[31m${signalText}\x1b[0m`,
+            );
+            reject(new Error(`Hook "${hookName}" failed with ${signalText}`));
+          } else {
+            console.log(`[hooks ${hookName}] Completed: "\x1b[32m${hook.cmd}\x1b[0m"`);
+            resolve();
+          }
+        });
+        child.unref();
 
-    const child = spawn(hook.cmd, {
-      detached: true,
-      shell: true,
-      stdio: ['ignore', hook.out, hook.err],
-    });
-    child.on('error', (err) => {
-      console.error(
-        `[hook ${hookName}] Execution error of "\x1b[31m${hook.cmd}\x1b[0m": \x1b[31m${err.message}\x1b[0m`,
-      );
-    });
-    child.on('close', (code, signal) => {
-      if (code !== 0) {
-        const signalText = signal ? `signal ${signal}` : `code ${code}`;
-        console.error(
-          `[hooks ${hookName}] Command "\x1b[31m${hook.cmd}\x1b[0m" exited with \x1b[31m${signalText}\x1b[0m`,
-        );
-      } else {
-        console.log(`[hooks ${hookName}] Completed: "\x1b[32m${hook.cmd}\x1b[0m"`);
-      }
-    });
-    child.unref();
-
-    Object.values(hook.fds).forEach((fd) => {
-      fs.closeSync(fd);
-    });
-  }
+        Object.values(hook.fds).forEach((fd) => {
+          fs.closeSync(fd);
+        });
+      }),
+  );
 }
 
 const servers = [];
@@ -1200,11 +1217,11 @@ configsByPort.forEach((portConfigs, p) => {
   servers.push(server);
 });
 
-function shutdown() {
+async function shutdown() {
   console.log('Closing all connections...');
   try {
     runHookSync(hooks, 'shutdown');
-    runHookAsync(hooks, 'shutdownAsync');
+    await Promise.allSettled(runHookAsync(hooks, 'shutdownAsync'));
   } catch (err) {
     console.error(`[hooks] Failed to run shutdown hooks: ${err.message}`);
   }
@@ -1229,11 +1246,15 @@ function shutdown() {
   });
 }
 
-process.on('message', (msg) => {
+process.on('message', async (msg) => {
   if (typeof msg === 'string' && msg.toLowerCase() === 'shutdown') {
-    shutdown();
+    await shutdown();
   }
 });
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => {
+  shutdown().catch(() => process.exit(1));
+});
+process.on('SIGTERM', () => {
+  shutdown().catch(() => process.exit(1));
+});

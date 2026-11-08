@@ -44,9 +44,13 @@
     ],
     "hooks": {
       "start": "echo 'Sync message: Server A is starting...'",
-      "startAsync": "echo 'Async message: Server A is starting...'",
+      "startAsync": ["echo 'Async message: Server A is starting...'"],
       "shutdown": "echo 'Sync message: Server A is stopping...'",
-      "shutdownAsync": "echo 'Async message: Server A is stopping...'"
+      "shutdownAsync": {
+        "cmd": "echo 'Async message: Server A is stopping...'",
+        "out": "logs/server-a-shutdown.log",
+        "err": "logs/server-a-shutdown-error.log"
+      }
     }
   },
   {
@@ -64,8 +68,20 @@
       "json": { "status": 404, "send": { "error": "Not Found" } }
     },
     "hooks": {
-      "start": ["echo 'Server B is starting...'"],
-      "shutdown": ["echo 'Server B is stopping...'"]
+      "start": ["echo 'Sync: Server B is starting...'"],
+      "startAsync": {
+        "cmd": "echo 'Async: Server B is starting...'",
+        "out": "logs/server-b-start.log",
+        "err": "logs/server-b-start-error.log"
+      },
+      "shutdown": ["echo 'Sync: Server B is stopping...'"],
+      "shutdownAsync": [
+        {
+          "cmd": "echo 'Async: Server B is stopping...'",
+          "out": "logs/server-b-shutdown.log",
+          "err": "logs/server-b-shutdown-error.log"
+        }
+      ]
     }
   },
   {
