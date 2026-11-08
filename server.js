@@ -1040,46 +1040,56 @@ function runHookAsync(hooks, hookName) {
   if (!list?.length) return;
 
   for (const runItem of list) {
-    console.log(`[hook ${hookName}] \x1b[34m${runItem.cmd}\x1b[0m`);
-    const hookLog = {
+    const hook = {
+      cmd: runItem.cmd,
       out: 'inherit',
       err: 'inherit',
+      fds: {},
     };
 
+    console.log(`[hook ${hookName}] \x1b[34m${hook.cmd}\x1b[0m`);
     ['out', 'err'].forEach((op) => {
-      if (runItem[op] && runItem[op] !== hookLog[op]) {
-        if (runItem[op] === 'inherit') hookLog[op] = 'inherit';
-        else if (runItem[op] === 'ignore') hookLog[op] = 'ignore';
+      if (runItem[op] && runItem[op] !== hook[op]) {
+        if (runItem[op] === 'inherit') hook[op] = 'inherit';
+        else if (runItem[op] === 'ignore') hook[op] = 'ignore';
         else {
-          const logPath = path.resolve(configDir, runItem.logOut);
+          const logPath = path.resolve(configDir, runItem[op]);
           console.log(`[hook ${hookName}] \tLogging ${op} to: ${logPath}`);
-          fs.mkdirSync(path.dirname(logPath), { recursive: true });
-          hookLog[op] = fs.openSync(path.resolve(configDir, runItem.logOut), 'a');
+          if (!hook.fds[logPath]) {
+            fs.mkdirSync(path.dirname(logPath), { recursive: true });
+            hook.fds[logPath] = hook[op] = fs.openSync(path.resolve(configDir, runItem[op]), 'a');
+          } else {
+            hook[op] = hook.fds[logPath];
+          }
         }
       }
     });
 
-    const child = spawn(runItem.cmd, {
+    const child = spawn(hook.cmd, {
       detached: true,
       shell: true,
-      stdio: ['ignore', hookLog.out, hookLog.err],
+      stdio: ['ignore', hook.out, hook.err],
     });
     child.on('error', (err) => {
       console.error(
-        `[hook ${hookName}] Execution error of "\x1b[31m${command}\x1b[0m": \x1b${err.message}\x1b[0m`,
+        `[hook ${hookName}] Execution error of "\x1b[31m${hook.cmd}\x1b[0m": \x1b[31m${err.message}\x1b[0m`,
       );
     });
     child.on('close', (code, signal) => {
       if (code !== 0) {
         const signalText = signal ? `signal ${signal}` : `code ${code}`;
         console.error(
-          `[hooks ${hookName}] Command "\x1b[31m${command}\x1b[0m" exited with \x1b[31m${signalText}\x1b[0m`,
+          `[hooks ${hookName}] Command "\x1b[31m${hook.cmd}\x1b[0m" exited with \x1b[31m${signalText}\x1b[0m`,
         );
       } else {
-        console.log(`[hooks ${hookName}] Completed: "\x1b[32m${command}\x1b[0m"`);
+        console.log(`[hooks ${hookName}] Completed: "\x1b[32m${hook.cmd}\x1b[0m"`);
       }
     });
     child.unref();
+
+    Object.values(hook.fds).forEach((fd) => {
+      fs.closeSync(fd);
+    });
   }
 }
 
