@@ -1252,9 +1252,19 @@ process.on('message', async (msg) => {
   }
 });
 
-process.on('SIGINT', () => {
-  shutdown().catch(() => process.exit(1));
-});
-process.on('SIGTERM', () => {
-  shutdown().catch(() => process.exit(1));
-});
+if (process.platform === 'win32') {
+  const { default: readline } = await import('node:readline/promises');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  rl.on('SIGINT', async () => {
+    await shutdown();
+  });
+  rl.on('SIGTERM', async () => {
+    await shutdown();
+  });
+} else {
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
