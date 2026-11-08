@@ -2,15 +2,6 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Start server (default config)",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/server.js",
-      "args": ["--config", "server-config.json"],
-      "skipFiles": ["<node_internals>/**", "node_modules/**"],
-      "console": "integratedTerminal"
-    },
-    {
       "name": "Start server (demo config)",
       "type": "node",
       "request": "launch",
