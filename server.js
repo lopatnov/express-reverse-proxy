@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs';
+import path from 'node:path';
+import express from 'express';
+
 const possibleServerArgs = [
   {
     name: '--help',
@@ -108,9 +112,8 @@ if (serverArgs['--help']) {
 }
 
 if (serverArgs['--cluster']) {
-  const [{ spawnSync }, { default: path }, { fileURLToPath }] = await Promise.all([
+  const [{ spawnSync }, { fileURLToPath }] = await Promise.all([
     import('node:child_process'),
-    import('node:path'),
     import('node:url'),
   ]);
   const clusterArgIndex = process.argv.indexOf('--cluster');
@@ -169,11 +172,7 @@ if (serverArgs['--cluster']) {
 }
 
 if (serverArgs['--init']) {
-  const [{ default: fs }, { default: path }, { default: readline }] = await Promise.all([
-    import('node:fs'),
-    import('node:path'),
-    import('node:readline/promises'),
-  ]);
+  const { default: readline } = await import('node:readline/promises');
   const configOut = path.resolve(process.cwd(), 'server-config.json');
   if (fs.existsSync(configOut)) {
     const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -196,11 +195,6 @@ if (serverArgs['--init']) {
   console.log(`[init] Created ${configOut}`);
   process.exit(0);
 }
-
-const [{ default: fs }, { default: path }] = await Promise.all([
-  import('node:fs'),
-  import('node:path'),
-]);
 
 let configFile = './server-config.json';
 if (serverArgs['--config']) {
@@ -308,6 +302,29 @@ if (serverArgs['--env']) {
   configs = filtered;
 }
 
+// Collect hooks
+const hooks = {};
+configs.forEach((c) => {
+  if (c.hooks) {
+    Object.keys(c.hooks).forEach((hookName) => {
+      hooks[hookName] = hooks[hookName] || [];
+    });
+    ['start', 'shutdown'].forEach((hookName) => {
+      if (typeof c.hooks[hookName] === 'string') hooks[hookName].push(c.hooks[hookName]);
+      else if (Array.isArray(c.hooks[hookName])) hooks[hookName].push(...c.hooks[hookName]);
+    });
+
+    ['startAsync', 'shutdownAsync'].forEach((hookName) => {
+      if (typeof c.hooks[hookName] === 'string')
+        hooks[hookName].push({
+          cmd: c.hooks[hookName],
+        });
+      else if (Array.isArray(c.hooks[hookName])) hooks[hookName].push(...c.hooks[hookName]);
+      else if (typeof c.hooks[hookName] === 'object') hooks[hookName].push(c.hooks[hookName]);
+    });
+  }
+});
+
 // Validate: same host on same port is an error; same host on different ports is OK
 const seen = new Set();
 configs.forEach((c) => {
@@ -348,8 +365,6 @@ for (const [p, group] of configsByPort) {
 }
 
 // Load optional dependencies only for features enabled in the server configuration.
-// Express itself is the runtime's only unconditional external dependency.
-const { default: express } = await import('express');
 let basicAuth;
 let compression;
 let cors;
@@ -363,9 +378,12 @@ let randomInt;
 let rateLimit;
 let responseTime;
 let spawn;
+let execSync;
 let Worker;
 
 const hasEnabledConfig = (property) => configs.some((config) => Boolean(config[property]));
+const hasEnabledConfigHooks = hasEnabledConfig('hooks');
+const hasEnabledConfigCgi = hasEnabledConfig('cgi');
 
 if (hasEnabledConfig('proxy')) ({ default: proxy } = await import('express-http-proxy'));
 if (configs.some((config) => config.logging !== false))
@@ -383,8 +401,11 @@ if (hasEnabledConfig('upload')) {
     import('node:crypto'),
   ]);
 }
-if (hasEnabledConfig('cgi')) {
+if (hasEnabledConfigHooks) ({ execSync } = await import('node:child_process'));
+if (hasEnabledConfigHooks || hasEnabledConfigCgi) {
   ({ spawn } = await import('node:child_process'));
+}
+if (hasEnabledConfigCgi) {
   const usesCgiWorker = configs.some((config) => {
     const cgiConfigs = Array.isArray(config.cgi) ? config.cgi : [config.cgi];
     return cgiConfigs.some((cgiConfig) =>
@@ -1005,7 +1026,67 @@ function unhandled(res, acceptConfig) {
   }
 }
 
+function runHookSync(hooks, hookName) {
+  const list = hooks[hookName];
+  if (!list?.length) return;
+  for (const command of list) {
+    console.log(`[hook ${hookName}] \x1b[34m${command}\x1b[0m`);
+    execSync(command, { stdio: 'inherit' });
+  }
+}
+
+function runHookAsync(hooks, hookName) {
+  const list = hooks[hookName];
+  if (!list?.length) return;
+
+  for (const runItem of list) {
+    console.log(`[hook ${hookName}] \x1b[34m${runItem.cmd}\x1b[0m`);
+    const hookLog = {
+      out: 'inherit',
+      err: 'inherit',
+    };
+
+    ['out', 'err'].forEach((op) => {
+      if (runItem[op] && runItem[op] !== hookLog[op]) {
+        if (runItem[op] === 'inherit') hookLog[op] = 'inherit';
+        else if (runItem[op] === 'ignore') hookLog[op] = 'ignore';
+        else {
+          const logPath = path.resolve(configDir, runItem.logOut);
+          console.log(`[hook ${hookName}] \tLogging ${op} to: ${logPath}`);
+          fs.mkdirSync(path.dirname(logPath), { recursive: true });
+          hookLog[op] = fs.openSync(path.resolve(configDir, runItem.logOut), 'a');
+        }
+      }
+    });
+
+    const child = spawn(runItem.cmd, {
+      detached: true,
+      shell: true,
+      stdio: ['ignore', hookLog.out, hookLog.err],
+    });
+    child.on('error', (err) => {
+      console.error(
+        `[hook ${hookName}] Execution error of "\x1b[31m${command}\x1b[0m": \x1b${err.message}\x1b[0m`,
+      );
+    });
+    child.on('close', (code, signal) => {
+      if (code !== 0) {
+        const signalText = signal ? `signal ${signal}` : `code ${code}`;
+        console.error(
+          `[hooks ${hookName}] Command "\x1b[31m${command}\x1b[0m" exited with \x1b[31m${signalText}\x1b[0m`,
+        );
+      } else {
+        console.log(`[hooks ${hookName}] Completed: "\x1b[32m${command}\x1b[0m"`);
+      }
+    });
+    child.unref();
+  }
+}
+
 const servers = [];
+
+runHookSync(hooks, 'start');
+runHookAsync(hooks, 'startAsync');
 
 configsByPort.forEach((portConfigs, p) => {
   const app = express();
@@ -1111,6 +1192,12 @@ configsByPort.forEach((portConfigs, p) => {
 
 function shutdown() {
   console.log('Closing all connections...');
+  try {
+    runHookSync(hooks, 'shutdown');
+    runHookAsync(hooks, 'shutdownAsync');
+  } catch (err) {
+    console.error(`[hooks] Failed to run shutdown hooks: ${err.message}`);
+  }
   const timer = setTimeout(() => {
     console.error('Forced exit after timeout');
     process.exit(1);

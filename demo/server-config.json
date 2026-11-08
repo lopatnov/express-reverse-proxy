@@ -41,7 +41,11 @@
           ".js": { "type": "process", "interpreter": "node" }
         }
       }
-    ]
+    ],
+    "hooks": {
+      "start": ["echo 'Server is starting...'"],
+      "shutdown": ["echo 'Server is stopping...'"]
+    }
   },
   {
     "port": 8081,
